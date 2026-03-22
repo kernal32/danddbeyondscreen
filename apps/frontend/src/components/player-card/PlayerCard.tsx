@@ -30,6 +30,8 @@ type PlayerCardScale = {
   nameTitle: string;
   headerRowGap: string;
   tilePad: string;
+  /** HP / AC / primary stat tiles: tight vertical padding (3px top/bottom). */
+  primaryStatTilePad: string;
   hpMaxSlash: string;
   hpBarH: string;
   movementMaxW: string;
@@ -64,6 +66,7 @@ function playerCardScale(large: boolean, tvDensity: TvPartyGridDensity | undefin
       nameTitle: 'text-xl',
       headerRowGap: 'gap-4',
       tilePad: 'px-3 py-3',
+      primaryStatTilePad: 'px-3 pt-[3px] pb-[3px]',
       hpMaxSlash: 'text-base',
       hpBarH: 'h-2',
       movementMaxW: '',
@@ -94,6 +97,7 @@ function playerCardScale(large: boolean, tvDensity: TvPartyGridDensity | undefin
       nameTitle: 'text-lg md:text-2xl',
       headerRowGap: 'gap-2 md:gap-3',
       tilePad: 'px-2.5 py-2 md:px-3 md:py-3',
+      primaryStatTilePad: 'px-2.5 pt-[3px] pb-[3px] md:px-3',
       hpMaxSlash: 'text-sm md:text-base',
       hpBarH: 'h-1.5 md:h-2',
       movementMaxW: '',
@@ -123,6 +127,7 @@ function playerCardScale(large: boolean, tvDensity: TvPartyGridDensity | undefin
       nameTitle: 'text-2xl md:text-4xl',
       headerRowGap: 'gap-3 md:gap-4',
       tilePad: 'px-3 py-3 md:px-4 md:py-4',
+      primaryStatTilePad: 'px-3 pt-[3px] pb-[3px] md:px-4',
       hpMaxSlash: 'text-lg md:text-xl',
       hpBarH: 'h-2 md:h-2.5',
       movementMaxW: 'max-w-2xl',
@@ -151,6 +156,7 @@ function playerCardScale(large: boolean, tvDensity: TvPartyGridDensity | undefin
     nameTitle: 'text-3xl md:text-5xl',
     headerRowGap: 'gap-4 md:gap-5',
     tilePad: 'px-4 py-4 md:px-5 md:py-5',
+    primaryStatTilePad: 'px-4 pt-[3px] pb-[3px] md:px-5',
     hpMaxSlash: 'text-xl md:text-2xl',
     hpBarH: 'h-2.5 md:h-3',
     movementMaxW: 'max-w-2xl',
@@ -208,6 +214,25 @@ function hpBarClass(d: PlayerCardData): string {
   return 'bg-emerald-500';
 }
 
+function renderHpHeartIconArea(d: PlayerCardData, sc: PlayerCardScale, primaryIconAreaClass: string): ReactNode {
+  return (
+    <div className={primaryIconAreaClass}>
+      <div className={`relative mx-auto shrink-0 overflow-visible ${sc.statIconFrame}`}>
+        <IconHeart
+          className={`-translate-y-1 pointer-events-none absolute inset-0 h-full w-full ${hpToneClass(d)} opacity-90`}
+          aria-hidden
+        />
+        <div className="pointer-events-none absolute inset-0 z-10 flex -translate-y-[3px] flex-col items-center justify-center gap-0.5 px-1 text-center">
+          <div className={`${sc.acValueNumeral} max-w-full leading-none tabular-nums text-white`}>{d.hp.current}</div>
+          {d.hp.tempHp != null && d.hp.tempHp > 0 && (
+            <div className={`${sc.labelSm} mt-0.5 font-semibold text-sky-400`}>+{d.hp.tempHp} temp</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Hit point bar + centered `current/max` above it (same vertical footprint as {@link HpBarFootprintSpacer}). */
 function HpBarWithFraction({
   d,
@@ -220,7 +245,7 @@ function HpBarWithFraction({
   visibleFraction: boolean;
 }) {
   return (
-    <div className="flex w-full min-w-0 shrink-0 flex-col items-center gap-0.5 pt-3">
+    <div className="flex w-full min-w-0 shrink-0 flex-col items-center gap-[3px]">
       <div
         className={`w-full text-center tabular-nums ${sc.hpMaxSlash} ${visibleFraction ? 'text-white/90' : 'invisible'}`}
         aria-hidden={!visibleFraction}
@@ -239,11 +264,9 @@ function HpBarWithFraction({
 
 function HpBarFootprintSpacer({ sc }: { sc: PlayerCardScale }) {
   return (
-    <div className="mt-auto w-full shrink-0">
-      <div className="pointer-events-none flex w-full flex-col items-center gap-0.5 pt-3 select-none" aria-hidden>
-        <div className={`invisible w-full text-center tabular-nums ${sc.hpMaxSlash}`}>88/88</div>
-        <div className={`${sc.hpBarH} w-full shrink-0`} />
-      </div>
+    <div className="pointer-events-none flex w-full flex-col items-center gap-[3px] select-none" aria-hidden>
+      <div className={`invisible w-full text-center tabular-nums ${sc.hpMaxSlash}`}>88/88</div>
+      <div className={`${sc.hpBarH} w-full shrink-0`} />
     </div>
   );
 }
@@ -342,7 +365,7 @@ function renderHeader(
   return <PlayerCardHeader d={d} o={o} sc={sc} headerTrailing={headerTrailing} />;
 }
 
-/** Keeps the character name vertically within the avatar square by measuring the portrait and shrinking type. */
+/** Shrinks the character name so it fits the header column width, and within the avatar square height when shown. */
 function PlayerCardHeader({
   d,
   o,
@@ -355,11 +378,13 @@ function PlayerCardHeader({
   headerTrailing: ReactNode | undefined;
 }) {
   const avatarWrapRef = useRef<HTMLDivElement>(null);
+  const nameWrapRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLHeadingElement>(null);
   const [avatarH, setAvatarH] = useState(0);
 
   const sub = subtitleLine(d);
   const initial = d.name.slice(0, 1).toUpperCase();
+  const capNameHeight = o.showAvatar && avatarH > 0;
 
   useLayoutEffect(() => {
     const node = avatarWrapRef.current;
@@ -376,24 +401,39 @@ function PlayerCardHeader({
 
   useLayoutEffect(() => {
     const el = nameRef.current;
-    if (!el || !o.showCharacterName) return;
-    if (!o.showAvatar || avatarH <= 0) {
-      el.style.fontSize = '';
-      return;
-    }
-    el.style.fontSize = '';
-    const start = parseFloat(getComputedStyle(el).fontSize);
-    let fs = Number.isFinite(start) ? start : 20;
-    el.style.fontSize = `${fs}px`;
-    let guard = 0;
-    while (el.scrollHeight > avatarH && fs > 8 && guard < 160) {
-      fs -= 0.5;
-      el.style.fontSize = `${fs}px`;
-      guard += 1;
-    }
-  }, [avatarH, d.name, o.showCharacterName, o.showAvatar, sc.nameTitle]);
+    const wrap = nameWrapRef.current;
+    if (!el || !wrap || !o.showCharacterName) return;
 
-  const capNameHeight = o.showAvatar && avatarH > 0;
+    const fit = () => {
+      el.style.fontSize = '';
+      const start = parseFloat(getComputedStyle(el).fontSize);
+      let fs = Number.isFinite(start) ? start : 20;
+      const maxW = wrap.clientWidth;
+      if (maxW < 4) return;
+
+      const maxH = capNameHeight ? avatarH : Number.POSITIVE_INFINITY;
+
+      const overflows = () => {
+        el.style.fontSize = `${fs}px`;
+        const wEx = el.scrollWidth > maxW + 1;
+        const hEx = Number.isFinite(maxH) && el.scrollHeight > maxH + 1;
+        return wEx || hEx;
+      };
+
+      let guard = 0;
+      while (overflows() && fs > 8 && guard < 200) {
+        fs -= 0.5;
+        guard += 1;
+      }
+    };
+
+    fit();
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(fit);
+    });
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [avatarH, capNameHeight, d.name, o.showCharacterName, sc.nameTitle]);
 
   return (
     <div className={`flex items-start ${sc.headerRowGap}`}>
@@ -413,6 +453,7 @@ function PlayerCardHeader({
       <div className="flex min-w-0 flex-1 flex-col">
         {o.showCharacterName && (
           <div
+            ref={nameWrapRef}
             className="min-w-0 overflow-hidden"
             style={capNameHeight ? { height: avatarH } : undefined}
           >
@@ -450,87 +491,115 @@ function renderPrimaryStats(d: PlayerCardData, o: PartyCardDisplayOptions, sc: P
   const rowGrid =
     n >= 3 ? 'grid-cols-1 sm:grid-cols-3' : n === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1';
 
-  const tile = `rounded-2xl bg-black/20 shadow-md border border-white/5 ${sc.tilePad}`;
+  const primaryTile = `rounded-2xl bg-black/20 shadow-md border border-white/5 ${sc.primaryStatTilePad}`;
   /** Reserve same bottom band as the HP bar so AC / third column icons line up with the heart. */
   const hpBarFootprint = showHp && o.showHitPointsBar;
-  /** Same flex box for heart + shield so both glyphs center identically above the bar / spacer. */
+  /** Icon band: top-aligned, no flex growth (avoids huge gap above HP fraction / AC bar spacer). */
   const primaryIconAreaClass =
-    'flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center px-1 text-center';
+    'flex w-full min-w-0 shrink-0 flex-col items-center justify-start px-1 text-center';
 
   return (
     <div className="space-y-3">
-      <div className={`grid min-h-0 gap-3 md:gap-4 ${rowGrid}`}>
+      <div className={`grid min-h-0 items-stretch gap-3 md:gap-4 ${rowGrid}`}>
         {showHp && (
-          <div className={`${tile} flex h-full min-h-0 flex-col`}>
-            {o.showHitPoints && (
-              <div className={primaryIconAreaClass}>
-                <div className={`relative mx-auto shrink-0 ${sc.statIconFrame}`}>
-                  <IconHeart
-                    className={`pointer-events-none absolute inset-0 h-full w-full ${hpToneClass(d)} opacity-90`}
-                    aria-hidden
-                  />
-                  <div className="pointer-events-none absolute inset-0 z-10 flex -translate-y-[3px] flex-col items-center justify-center gap-0.5 px-1 text-center">
-                    <div className={`${sc.acValueNumeral} max-w-full leading-none tabular-nums text-white`}>
-                      {d.hp.current}
-                    </div>
-                    {d.hp.tempHp != null && d.hp.tempHp > 0 && (
-                      <div className={`${sc.labelSm} mt-0.5 font-semibold text-sky-400`}>
-                        +{d.hp.tempHp} temp
-                      </div>
-                    )}
-                  </div>
+          <div className={`${primaryTile} flex h-full min-h-0 flex-col`}>
+            {o.showHitPointsBar && o.showHitPoints ? (
+              <div className="flex min-h-0 w-full flex-1 flex-col justify-end">
+                {renderHpHeartIconArea(d, sc, primaryIconAreaClass)}
+                <div className="mt-[3px] w-full min-w-0 shrink-0">
+                  <HpBarWithFraction d={d} sc={sc} visibleFraction />
                 </div>
               </div>
-            )}
-            {o.showHitPoints && !o.showHitPointsBar && (
-              <div className={`w-full shrink-0 text-center tabular-nums ${sc.hpMaxSlash} text-white/90`}>
-                {d.hp.current}/{d.hp.max}
-              </div>
-            )}
-            {o.showHitPointsBar && (
-              <div
-                className={
-                  o.showHitPoints ? 'mt-auto w-full min-w-0 shrink-0' : 'mt-auto flex w-full min-w-0 flex-1 shrink-0 flex-col justify-end'
-                }
-              >
+            ) : null}
+            {o.showHitPoints && !o.showHitPointsBar ? (
+              <>
+                {renderHpHeartIconArea(d, sc, primaryIconAreaClass)}
+                <div className={`w-full shrink-0 text-center tabular-nums ${sc.hpMaxSlash} text-white/90`}>
+                  {d.hp.current}/{d.hp.max}
+                </div>
+              </>
+            ) : null}
+            {o.showHitPointsBar && !o.showHitPoints ? (
+              <div className="flex min-h-0 w-full flex-1 flex-col justify-end">
                 <HpBarWithFraction d={d} sc={sc} visibleFraction />
               </div>
-            )}
+            ) : null}
           </div>
         )}
         {showAc && (
-          <div className={`${tile} flex h-full min-h-0 flex-col text-center`}>
-            <div className={primaryIconAreaClass}>
-              <ArmorClassShieldBadge
-                ac={d.ac}
-                frameClassName={`relative mx-auto shrink-0 ${sc.statIconFrame}`}
-                captionClassName={sc.acShieldCaption}
-                valueClassName={`${sc.acValueNumeral} leading-none text-white tabular-nums`}
-              />
-            </div>
-            {hpBarFootprint ? <HpBarFootprintSpacer sc={sc} /> : null}
+          <div className={`${primaryTile} flex h-full min-h-0 flex-col text-center`}>
+            {hpBarFootprint ? (
+              <div className="flex min-h-0 w-full flex-1 flex-col justify-end">
+                <div className={primaryIconAreaClass}>
+                  <ArmorClassShieldBadge
+                    ac={d.ac}
+                    frameClassName={`relative mx-auto shrink-0 overflow-visible ${sc.statIconFrame}`}
+                    captionClassName={sc.acShieldCaption}
+                    valueClassName={`${sc.acValueNumeral} leading-none text-white tabular-nums`}
+                  />
+                </div>
+                <div className="mt-[3px] w-full min-w-0 shrink-0">
+                  <HpBarFootprintSpacer sc={sc} />
+                </div>
+              </div>
+            ) : (
+              <div className={primaryIconAreaClass}>
+                <ArmorClassShieldBadge
+                  ac={d.ac}
+                  frameClassName={`relative mx-auto shrink-0 overflow-visible ${sc.statIconFrame}`}
+                  captionClassName={sc.acShieldCaption}
+                  valueClassName={`${sc.acValueNumeral} leading-none text-white tabular-nums`}
+                />
+              </div>
+            )}
           </div>
         )}
         {third === 'dc' && (
-          <div className={`${tile} flex h-full min-h-0 flex-col text-center`}>
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-start pt-0.5">
-              <div>
-                <div className={sc.labelSm}>Spell save DC</div>
-                <div className={`${sc.primaryHero} mt-1 text-[var(--text)] tabular-nums`}>{d.combat!.spellSaveDC}</div>
+          <div className={`${primaryTile} flex h-full min-h-0 flex-col text-center`}>
+            {hpBarFootprint ? (
+              <div className="flex min-h-0 w-full flex-1 flex-col justify-end">
+                <div className={primaryIconAreaClass}>
+                  <div>
+                    <div className={sc.labelSm}>Spell save DC</div>
+                    <div className={`${sc.primaryHero} mt-1 text-[var(--text)] tabular-nums`}>{d.combat!.spellSaveDC}</div>
+                  </div>
+                </div>
+                <div className="mt-[3px] w-full min-w-0 shrink-0">
+                  <HpBarFootprintSpacer sc={sc} />
+                </div>
               </div>
-            </div>
-            {hpBarFootprint ? <HpBarFootprintSpacer sc={sc} /> : null}
+            ) : (
+              <div className={primaryIconAreaClass}>
+                <div>
+                  <div className={sc.labelSm}>Spell save DC</div>
+                  <div className={`${sc.primaryHero} mt-1 text-[var(--text)] tabular-nums`}>{d.combat!.spellSaveDC}</div>
+                </div>
+              </div>
+            )}
           </div>
         )}
         {third === 'init' && (
-          <div className={`${tile} flex h-full min-h-0 flex-col text-center`}>
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-start pt-0.5">
-              <div>
-                <div className={sc.labelSm}>Initiative</div>
-                <div className={`${sc.primaryHero} mt-1 text-[var(--text)] tabular-nums`}>{fmtMod(d.initiativeMod!)}</div>
+          <div className={`${primaryTile} flex h-full min-h-0 flex-col text-center`}>
+            {hpBarFootprint ? (
+              <div className="flex min-h-0 w-full flex-1 flex-col justify-end">
+                <div className={primaryIconAreaClass}>
+                  <div>
+                    <div className={sc.labelSm}>Initiative</div>
+                    <div className={`${sc.primaryHero} mt-1 text-[var(--text)] tabular-nums`}>{fmtMod(d.initiativeMod!)}</div>
+                  </div>
+                </div>
+                <div className="mt-[3px] w-full min-w-0 shrink-0">
+                  <HpBarFootprintSpacer sc={sc} />
+                </div>
               </div>
-            </div>
-            {hpBarFootprint ? <HpBarFootprintSpacer sc={sc} /> : null}
+            ) : (
+              <div className={primaryIconAreaClass}>
+                <div>
+                  <div className={sc.labelSm}>Initiative</div>
+                  <div className={`${sc.primaryHero} mt-1 text-[var(--text)] tabular-nums`}>{fmtMod(d.initiativeMod!)}</div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

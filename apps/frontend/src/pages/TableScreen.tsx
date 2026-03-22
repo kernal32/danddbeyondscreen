@@ -142,9 +142,9 @@ export default function TableScreen() {
       ) : null}
       {live && !pinGateOpen ? (
         <>
-          <div className="flex flex-1 min-h-0 min-w-0 flex-col pb-12">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain pb-12">
             <TableLayoutView
-              className="flex flex-1 min-h-0 min-w-0 flex-col"
+              className="flex min-h-0 min-w-0 flex-1 flex-col"
               state={live}
               large
               fillViewport

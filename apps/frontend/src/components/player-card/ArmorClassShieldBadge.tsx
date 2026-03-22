@@ -30,20 +30,21 @@ export default function ArmorClassShieldBadge({
       role="img"
       aria-label={`Armor class ${label}`}
     >
-      <svg
-        className="pointer-events-none absolute inset-0 h-full w-full text-sky-400/90"
-        viewBox={SHIELD_VIEWBOX}
-        fill="none"
-        preserveAspectRatio="xMidYMid meet"
-        aria-hidden
-      >
-        <ShieldHeaterOutline />
-      </svg>
-      {/* `w-max` + translate: center column, then fine-tune vs shield (+3px right; 12px up from pure vertical center). */}
-      <div className="pointer-events-none absolute left-1/2 top-[63%] z-10 flex w-max min-w-0 max-w-[calc(100%-0.35rem)] translate-x-[calc(-50%+3px)] translate-y-[calc(-50%-12px)] flex-col items-stretch gap-0.5 text-center">
-        <span className={`${captionClassName} text-center`}>Armor</span>
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <svg
+          className="h-full w-full text-sky-400/90"
+          viewBox={SHIELD_VIEWBOX}
+          fill="none"
+          preserveAspectRatio="xMidYMid meet"
+          aria-hidden
+        >
+          <ShieldHeaterOutline />
+        </svg>
+      </div>
+      <div className="pointer-events-none absolute inset-0 z-10 flex -translate-x-[2px] flex-col items-center justify-center gap-0.5 px-1 text-center">
+        <span className={`${captionClassName} w-full text-center`}>Armor</span>
         <span className={`${valueClassName} max-w-full text-center leading-none`}>{label}</span>
-        <span className={`${captionClassName} text-center`}>Class</span>
+        <span className={`${captionClassName} w-full text-center`}>Class</span>
       </div>
     </div>
   );

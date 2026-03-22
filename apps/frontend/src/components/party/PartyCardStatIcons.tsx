@@ -28,10 +28,12 @@ const SHIELD_STROKE_USER_UNITS = SHIELD_STROKE_PATH_UNITS * 0.1;
 const HEART_STROKE_MATCH_SHIELD = (SHIELD_STROKE_USER_UNITS * 24) / 112;
 
 const SHIELD_VERTICAL_NUDGE = (112 - 105) / 2;
+/** Path bounds after `scale(0.1,-0.1)` are slightly right-heavy in 112×112; shift left for optical center. */
+const SHIELD_HORIZONTAL_NUDGE = -4;
 
 export function ShieldHeaterOutline({ strokeWidth = SHIELD_STROKE_PATH_UNITS }: { strokeWidth?: number }) {
   return (
-    <g transform={`translate(0,${SHIELD_VERTICAL_NUDGE})`}>
+    <g transform={`translate(${SHIELD_HORIZONTAL_NUDGE},${SHIELD_VERTICAL_NUDGE})`}>
       <g transform={SHIELD_TRANSFORM}>
         <path
           d={SHIELD_OUTER_PATH_D}
