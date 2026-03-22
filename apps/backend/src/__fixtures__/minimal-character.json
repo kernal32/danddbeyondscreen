@@ -1,0 +1,29 @@
+{
+  "id": 90001,
+  "name": "Fixture Hero",
+  "avatarUrl": "https://example.com/avatar.png",
+  "removedHitPoints": 3,
+  "temporaryHitPoints": 5,
+  "overrideHitPoints": null,
+  "baseHitPoints": 0,
+  "bonusHitPoints": 0,
+  "stats": [
+    { "id": 1, "value": 12 },
+    { "id": 2, "value": 14 },
+    { "id": 3, "value": 16 },
+    { "id": 5, "value": 14 }
+  ],
+  "overrideStats": [],
+  "modifiers": {},
+  "inventory": [],
+  "classes": [
+    {
+      "level": 2,
+      "isStartingClass": true,
+      "definition": { "hitDice": 10 }
+    }
+  ],
+  "preferences": { "hitPointType": 1 },
+  "campaign": null,
+  "conditions": ["tested"]
+}

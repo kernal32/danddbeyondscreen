@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        width: 320px;
+        padding: 12px;
+        margin: 0;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        margin-top: 8px;
+        color: #444;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        margin-top: 4px;
+        padding: 6px;
+      }
+      button {
+        margin-top: 12px;
+        width: 100%;
+        padding: 8px;
+        cursor: pointer;
+      }
+      #status {
+        margin-top: 10px;
+        font-size: 12px;
+        white-space: pre-wrap;
+      }
+      .ok {
+        color: #0a0;
+      }
+      .err {
+        color: #c00;
+      }
+    </style>
+  </head>
+  <body>
+    <p style="margin: 0 0 8px; font-size: 13px">
+      Log in on <strong>dndbeyond.com</strong> first. Then fill your DM session details (from the DM console after “New session”).
+    </p>
+    <label>Backend URL</label>
+    <input id="backend" type="text" placeholder="http://127.0.0.1:3001" />
+    <label>Session ID</label>
+    <input id="sessionId" type="text" autocomplete="off" />
+    <label>DM token</label>
+    <input id="dmToken" type="password" autocomplete="off" />
+    <button id="save">Save settings</button>
+    <button id="sync">Send cookies to DM Screen</button>
+    <div id="status"></div>
+    <script src="popup.js"></script>
+  </body>
+</html>

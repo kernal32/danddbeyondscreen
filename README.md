@@ -1,81 +1,134 @@
-# D&D Beyond Live-Update Campaign Page
+# D&D Beyond DM Screen (greenfield)
 
-![GitHub last commit](https://img.shields.io/github/last-commit/FaithLilley/DnDBeyond-Live-Campaign?style=plastic&logo=github) ![GitHub repo size](https://img.shields.io/github/repo-size/FaithLilley/DnDBeyond-Live-Campaign?style=plastic) ![GitHub License](https://img.shields.io/github/license/FaithLilley/DnDBeyond-Live-Campaign?style=plastic) ![Static Badge](https://img.shields.io/badge/JavaScript-x?style=plastic&logo=javascript&color=%235b5b5b)
+Self-hosted **table display** and **initiative tracker** inspired by [swichers/dndbeyond-screen](https://github.com/swichers/dndbeyond-screen). This version uses **Node.js / TypeScript**, **Fastify**, **Socket.IO**, and **React + Tailwind**.
 
-![Live Update Campaign Page Splash](./images/live-update-campaign.png)
+> **Warning:** D&D Beyond does not publish a stable public API. This tool uses the same unofficial `character/{id}/json` pattern as the reference PHP project. Respect rate limits; see [docs/analysis.md](./docs/analysis.md).
 
-**D&D Beyond Live-Update Campaign Page** is a script that allows you to view live data about each of the characters in a D&D Beyond campaign from the Campaign page itself.
+### Why “character not found” (404) even with a valid sheet URL?
 
-- [D\&D Beyond Live-Update Campaign Page](#dd-beyond-live-update-campaign-page)
-  - [1. Prerequisites](#1-prerequisites)
-  - [2. How to Install and Set-up](#2-how-to-install-and-set-up)
-  - [3. How to Use](#3-how-to-use)
-  - [4. What does it look like?](#4-what-does-it-look-like)
-  - [5. Credits](#5-credits)
-  - [6. License](#6-license)
-  - [7. Version Notes](#7-version-notes)
-    - [v 1.1.1](#v-111)
-    - [v 1.1](#v-11)
+Your browser uses URLs like `https://www.dndbeyond.com/characters/89992293`. This app requests **`https://www.dndbeyond.com/character/89992293/json`** (singular `character`), which is what [dndbeyond-screen](https://github.com/swichers/dndbeyond-screen) used.
 
-## 1. Prerequisites
+D&D Beyond often responds **`404 Resource Not Found`** on that legacy JSON URL for real characters today. When you provide a session cookie (`.env` `DDB_COOKIE` or **Settings → Save cookie to session**), the backend tries **`character-service.dndbeyond.com`** as a fallback with the same cookies.
 
-To use this script, you will need a browser extension that allows you to run User Scripts. There a numerous available to choose from, including:
+**Still 404 after saving a cookie?** The pasted line is often copied from the wrong Network row—e.g. **`accounts.google.com`** or other Google requests (cookies with `HSID`, `SAPISID`, etc.). You need the **`cookie` header from the request whose URL is** `https://www.dndbeyond.com/character/YOUR_ID/json`, or use the [Chrome extension](./extensions/dndbeyond-cookie-sync) while logged in on D&D Beyond.
 
-| Extension | Browser Support |
-| --- | --- |
-| [Firemonkey](https://addons.mozilla.org/en-US/firefox/addon/firemonkey/) | ![Firefox](./images/icon-firefox.png) |
-| [Greasemonkey](https://www.greasespot.net/) | ![Firefox](./images/icon-firefox.png) |
-| [Tampermonkey](https://www.tampermonkey.net/) | ![Chrome](./images/icon-chrome-18.png) ![Edge](./images/icon-edge.png) ![Firefox](./images/icon-firefox.png) ![Opera Next](./images/icon-opera.png) ![Safari](./images/icon-safari.png) |
-| [Violentmonkey](https://violentmonkey.github.io/) | ![Chrome](./images/icon-chrome-18.png) ![Edge](./images/icon-edge.png) ![Firefox](./images/icon-firefox.png) |
+**What still works without DDB sync:** initiative, manual HP/conditions, themes, display link, NPC templates, dice log, timed effects.
 
-Install one of these extensions for your browser. If you're not sure, I recommend Tampermonkey.
+**Other workarounds:** characters that still return JSON on the legacy URL (rare); future paste-JSON export (mind ToS and security).
 
-## 2. How to Install and Set-up
+### Optional: reuse your browser session (`DDB_COOKIE`)
 
-Ensure you are running a browser extension that takes UserScripts (see Prerequisites above).
+There is no official “Sign in with D&D Beyond” for third-party tools. If **`/character/{id}/json` works in your browser only while logged in**, you can let the **backend** send the same session cookies:
 
-Click on the Install Script button below to install this user script to your browser extension, then follow the instructions from your browser extension.
+1. Log in at [dndbeyond.com](https://www.dndbeyond.com).
+2. Open DevTools → **Network**, load  
+   `https://www.dndbeyond.com/character/YOUR_ID/json`  
+   (same numeric ID as the sheet).
+3. Select that request → **Headers** → copy the full **`Cookie`** request header value.
+4. At the **repo root**, create `.env` from [`.env.example`](./.env.example) and set:
+   ```env
+   DDB_COOKIE=paste_the_entire_cookie_header_here
+   ```
+5. **Restart the backend** so it picks up the variable. The server loads `../../../.env` relative to `apps/backend/src` (dev) or `dist` (production start).
 
-[![Live Update Campaign Page Splash](./images/install-button.png)](https://github.com/FaithLilley/DnDBeyond-Live-Campaign/raw/master/ddb-live-campaign.user.js) 
+**Behaviour:** the backend attaches that `Cookie` on every D&D Beyond fetch (a static copy of your session). It is **not** an interactive login screen and it does **not** auto-refresh when DDB rotates cookies—you paste again when requests start failing.
 
-## 3. How to Use
+**Security (important):**
 
-1. Open your [campaigns page on the D&D Beyond website](https://www.dndbeyond.com/my-campaigns).
-2. Click on one of your campaigns.
+- That string is **as powerful as your D&D Beyond login** for many actions. Do **not** commit it, paste it in chat, or run it on a shared server without isolation.
+- Prefer **localhost** or a **private** VPS; combine with HTTPS and firewall.
+- Review [D&D Beyond Terms of Service](https://www.dndbeyond.com/terms-of-service); automated use may be restricted.
 
-You'll now see additional information displayed on the card of each character, showing:
+**Not implemented (possible later):** a small **browser extension** that POSTs JSON to `localhost` (no cookie on disk), or **OAuth** if Wizards ever ships a public API.
 
-- Current Hit Points
-- Current Armor Class
-- Ability Scores
-- Passive Perception / Investigation / Insight
+### Making it easier for end users
 
-The data is automatically updated every 60 seconds.
+| Option | Status | UX |
+|--------|--------|-----|
+| **Cookie in .env** | Implemented | Technical; “paste once per session,” expires. |
+| **Paste JSON** | Not yet | User copies character JSON from DevTools (or future DDB export) and pastes into the app; no credential on server. Good next step. |
+| **Browser extension** | Deprecated | Prefer Tampermonkey + account API key below. |
+| **Party ingest (userscript)** | [userscripts/](./userscripts/) | **Account → API key** (starts with `dnd_`). Tampermonkey on `dndbeyond.com` uses `GM_xmlhttpRequest` to `POST /api/ingest/party` with `Authorization: Bearer <key>`; data is stored per **account**. **DM console → Load upload into this table** pulls it into a live session. Rate-limited; **revoke** keys when idle. |
+| **Sign in (this app)** | Required for API keys — set `AUTH_SECRET` (32+ chars) | SQLite + JWT; **Account** page for keys; save seed / table layout; new sessions preload layout/seed when the browser is signed in. |
+| **Official API** | Up to Wizards | Would allow proper “Connect D&D Beyond” if/when they offer it. |
 
-## 4. What does it look like?
+For **self-hosters**, server **`DDB_COOKIE`** still supports **Refresh party** from D&D Beyond when that flow works. For **players / DDB pages**, Tampermonkey + **account API key** is the supported path to push party JSON without per-session ingest tokens.
 
-This is how the character cards on the campaign page look with this script running.
+## Monorepo layout
 
-![Live Update Campaign Page Splash](./images/example-campaign.jpg)
+| Path | Description |
+|------|-------------|
+| `apps/backend` | Fastify API, Socket.IO, DDB fetch + calculator, initiative engine |
+| `apps/frontend` | React (Vite) DM console + TV/table display |
+| `packages/shared-types` | Shared TypeScript types |
+| `extensions/dndbeyond-cookie-sync` | Deprecated Chrome extension (cookie sync) |
+| `userscripts/` | Tampermonkey template + docs for party JSON ingest |
+| `docs/` | Canon + architecture, security, runbook, roadmap ([PROJECT_CANON.md](./docs/PROJECT_CANON.md)) |
 
-## 5. Credits
+## Prerequisites
 
-Author: [Faith Elisabeth Lilley](https://github.com/FaithLilley) (aka Stormknight)
+- **Node.js 20+**
+- npm (workspaces)
 
-Contributors: [@xander-hirst](https://github.com/xander-hirst)
+## Local development
 
-Project forked from [DNDBeyond-DM-Screen](https://github.com/TeaWithLucas/DNDBeyond-DM-Screen) by [TeaWithLucas](https://github.com/TeaWithLucas) - huge thanks for figuring out the DDB API code.
+Terminal 1 — backend (port **3001**):
 
-## 6. License
+```bash
+npm install
+npm run build --workspace=@ddb/shared-types
+npm run dev --workspace=@ddb/backend
+```
 
-This project uses the [MIT license](LICENSE.md).
+Terminal 2 — frontend (port **5173**, proxies API + WebSocket to 3001):
 
-## 7. Version Notes
+```bash
+npm run dev --workspace=@ddb/frontend
+```
 
-### v 1.1.1
+Open `http://127.0.0.1:5173`, create a session, open **Settings** (`/dm`, then **Settings**) for the **display link**, **D&D Beyond seed**, **Refresh party**, and **session cookie** / extension session ID. Use the **DM console** for combat, party HP, and initiative.
 
-Fix due to version change of the DDB API libraries. Thanks Xander!
+**Table (TV) layout:** Each session has a **`tableLayout`** (12-column grid widgets: party, initiative, effects, etc.) in `PublicSessionState`. The display uses it automatically. DM can **Reset TV layout** in the console, or `PATCH /api/sessions/:id` with `{ "tableLayout": { ... } }` / Socket **`session:setTableLayout`** (validated server-side).
 
-### v 1.1
+**Sessions are in-memory:** restarting the backend clears every game session. The browser may still show Socket.IO **Connected**, but REST calls (save cookie, etc.) return **`401 Unauthorized`** until you go home and **start a new session**.
 
-First full release.
+### User accounts (optional)
+
+Set **`AUTH_SECRET`** in `.env` to a **string at least 32 characters** (e.g. `openssl rand -hex 32`). Optional **`DATABASE_PATH`** defaults to `data/ddb-screen.db` (created automatically; folder is gitignored).
+
+- UI: **`/register`**, **`/login`**, and **Settings → Your account** (save/load seed, D&D Beyond cookie, table layout).
+- Stored DDB cookies are **encrypted at rest** (AES-256-GCM); the same secret signs **user JWTs** (30-day expiry, held in `localStorage`).
+- **New session** on the home page sends the user JWT when present so the new **game** session copies your saved preferences (seed, session cookie override, layout). Per-table **DM** and **display** tokens are unchanged.
+
+If `AUTH_SECRET` is missing or too short, account APIs stay off and the app behaves as before.
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run build` | Build all workspaces that define `build` |
+| `npm run dev:backend` | Backend with hot reload (`tsx watch`) |
+| `npm run dev:frontend` | Vite dev server |
+| `npm run test` | Backend Vitest suite |
+
+> **Windows + folder names containing `&`:** workspace scripts call `node ../../node_modules/...` so `.cmd` shims are not required.
+
+## Docker
+
+See [docs/DEPLOY.md](./docs/DEPLOY.md) and root `docker-compose.yml`.
+
+## Documentation
+
+- [docs/PROJECT_CANON.md](./docs/PROJECT_CANON.md) — source of truth: layers, auth, deployment
+- [docs/RUNBOOK.md](./docs/RUNBOOK.md) — Docker, SQLite persistence, edge/TLS pointers
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — components, schema, data flows
+- [docs/SECURITY.md](./docs/SECURITY.md) — threat model, API keys, rate limits
+- [docs/IMPLEMENTATION_TODO.md](./docs/IMPLEMENTATION_TODO.md) — phased roadmap
+- [docs/PROJECT_PROGRESS.md](./docs/PROJECT_PROGRESS.md) — chronological log
+- [docs/analysis.md](./docs/analysis.md) — how the reference PHP project works
+- [docs/ARCHITECTURE_SUMMARY.md](./docs/ARCHITECTURE_SUMMARY.md) — short summary (see also ARCHITECTURE.md)
+- [docs/DEPLOY.md](./docs/DEPLOY.md) — production / proxy / TLS snippets
+
+## License
+
+Implementation in this repo: choose a license for your own use. The cloned reference project `dndbeyond-screen/` remains **LGPL-3.0** (upstream).

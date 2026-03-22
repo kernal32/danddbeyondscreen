@@ -1,0 +1,30 @@
+{% spaceless %}
+  {% extends 'base.html.twig' %}
+  {% block title %}
+    {{ campaign.name }}
+  {% endblock %}
+
+  {% block body %}
+    <header class="container-fluid mb-2">
+      <div class="row">
+        <h1 class="display-3"><i class="fa fa-dragon"></i> <a
+            href="https://dndbeyond.com{{ campaign.link }}"
+          >{{ campaign.name|e }}</a>
+        </h1>
+        {% if campaign.description %}
+          <p>{{ campaign.description }}</p>
+        {% endif %}
+      </div>
+    </header>
+
+    <section class="container-fluid">
+      <div class="row sheet">
+        {% for character in characters %}
+          <div class="col-xl-3 col-md-4 mb-2">
+            {% include 'sheet/character-card/character-card.html.twig' with {'character': character, 'resp_headers': resp_headers} only %}
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endblock %}
+{% endspaceless %}

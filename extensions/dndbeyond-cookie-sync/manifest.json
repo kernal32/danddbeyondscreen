@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "DDB DM Screen — cookie sync",
+  "version": "1.0.0",
+  "description": "Sends your logged-in D&D Beyond cookies to the local DM Screen backend (localhost only).",
+  "permissions": ["cookies", "storage"],
+  "host_permissions": [
+    "https://www.dndbeyond.com/*",
+    "https://dndbeyond.com/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "action": {
+    "default_title": "Sync D&D Beyond cookie to DM Screen",
+    "default_popup": "popup.html"
+  }
+}

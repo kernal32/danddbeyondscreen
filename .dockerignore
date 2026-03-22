@@ -1,0 +1,8 @@
+node_modules
+**/dist
+.git
+dndbeyond-screen
+.env
+.env.local
+*.md
+!README.md

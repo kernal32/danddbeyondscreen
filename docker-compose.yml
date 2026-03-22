@@ -1,0 +1,32 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    ports:
+      # Bind to loopback so only the host edge proxy (or local tools) can reach the API; use frontend :8080 publicly.
+      - "127.0.0.1:3001:3001"
+    volumes:
+      # SQLite + WAL live here; survives container recreate (host path is repo ./data, gitignored).
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      PORT: "3001"
+      HOST: "0.0.0.0"
+      CORS_ORIGIN: "true"
+      DDB_BASE_URL: "https://www.dndbeyond.com/character/"
+      # Overrides repo-relative DATABASE_PATH from `.env` when both are set — keeps DB on the mounted volume.
+      DATABASE_PATH: /app/data/ddb-screen.db
+      # AUTH_SECRET, DDB_COOKIE, etc. come from `.env` (gitignored) via env_file above.
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root.theme-minimal,
+.theme-minimal {
+  --bg: #0f1419;
+  --surface: #1a2332;
+  --text: #f1f5f9;
+  --muted: #94a3b8;
+  --accent: #38bdf8;
+  --danger: #f87171;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+}
+
+:root.theme-fantasy,
+.theme-fantasy {
+  --bg: #1a1209;
+  --surface: #2c1810;
+  --text: #fde68a;
+  --muted: #d4a574;
+  --accent: #f59e0b;
+  --danger: #ef4444;
+  --ok: #84cc16;
+  --warn: #fb923c;
+}
+
+:root.theme-dark-arcane,
+.theme-dark-arcane {
+  --bg: #0b0a18;
+  --surface: #15132a;
+  --text: #e8e4f5;
+  --muted: #8b87a8;
+  --accent: #7dd3fc;
+  --danger: #fb7185;
+  --ok: #4ade80;
+  --warn: #fcd34d;
+}
+
+:root.theme-parchment,
+.theme-parchment {
+  --bg: #f0e4d0;
+  --surface: #e8dcc4;
+  --text: #2a1f14;
+  --muted: #6b5344;
+  --accent: #7f1d1d;
+  --danger: #b91c1c;
+  --ok: #166534;
+  --warn: #a16207;
+}
+
+:root.theme-stone-dungeon,
+.theme-stone-dungeon {
+  --bg: #1a1816;
+  --surface: #272320;
+  --text: #e7e5e4;
+  --muted: #a6a09b;
+  --accent: #f59e0b;
+  --danger: #ef4444;
+  --ok: #84cc16;
+  --warn: #fdba74;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+/* TV table: 12-col grid from lg (1024px); narrow tablets stack to one column */
+.table-layout-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1rem;
+  align-content: start;
+}
+
+/*
+ * Table display (/display/*): grid is a flex item with flex:1 so it gets a bounded height
+ * (height:100% alone does not shrink in a flex column). Rows split space; cells scroll.
+ */
+.table-layout-grid.table-layout-grid--fill {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  align-content: stretch;
+  gap: 0.5rem;
+}
+
+@media (max-width: 1023px) {
+  .table-layout-grid {
+    grid-template-columns: 1fr;
+  }
+  .table-layout-grid > .table-layout-cell {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+  }
+}
