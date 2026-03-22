@@ -6,6 +6,7 @@
     "packages/*"
   ],
   "scripts": {
+    "ship": "./scripts/ship-change.sh",
     "build": "npm run build --workspace=@ddb/shared-types && npm run build --workspace=@ddb/backend && npm run build --workspace=@ddb/frontend",
     "dev:backend": "npm run dev --workspace=@ddb/backend",
     "dev:frontend": "npm run dev --workspace=@ddb/frontend",

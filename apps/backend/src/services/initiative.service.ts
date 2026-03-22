@@ -111,7 +111,8 @@ export function removeCombatant(state: InitiativeState, entryId: string): Initia
 
 /** Remove every initiative row tied to a character id (e.g. player marked absent). */
 export function removeByEntityId(state: InitiativeState, entityId: string): InitiativeState {
-  const toRemove = state.turnOrder.filter((id) => state.entries[id]?.entityId === entityId);
+  const want = String(entityId);
+  const toRemove = state.turnOrder.filter((id) => String(state.entries[id]?.entityId ?? '') === want);
   let next = state;
   for (const id of toRemove) {
     next = removeCombatant(next, id);
@@ -127,7 +128,7 @@ export function filterInitiativeExcludingEntityIds(
   if (excludeEntityIds.size === 0) return state;
   const toRemove = state.turnOrder.filter((id) => {
     const e = state.entries[id];
-    return e && excludeEntityIds.has(e.entityId);
+    return e && excludeEntityIds.has(String(e.entityId));
   });
   let next = state;
   for (const id of toRemove) {
@@ -304,7 +305,7 @@ export function startCombatFromParty(
   let next = clearInitiative(state);
   for (const c of characters) {
     if (c.absent) continue;
-    if (skip?.has(c.id)) continue;
+    if (skip?.has(String(c.id))) continue;
     const mod =
       typeof c.initiativeBonus === 'number' && Number.isFinite(c.initiativeBonus)
         ? c.initiativeBonus

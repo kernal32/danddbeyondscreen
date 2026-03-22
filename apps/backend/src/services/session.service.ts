@@ -43,7 +43,7 @@ export function mergePartyOverrides(
   return {
     ...party,
     characters: party.characters.map((c) => {
-      const o = overrides[c.id];
+      const o = overrides[String(c.id)];
       if (!o) return { ...c };
       return {
         ...c,
@@ -155,15 +155,18 @@ export class SessionService {
     const hiddenIds = new Set(
       Object.entries(session.manualOverrides)
         .filter(([, v]) => v.hiddenFromTable === true)
-        .map(([id]) => id),
+        .map(([id]) => String(id)),
     );
     const hiddenPartyMembers = [...hiddenIds].map((id) => {
-      const c = session.party.characters.find((x) => x.id === id);
+      const c = session.party.characters.find((x) => String(x.id) === id);
       return { id, name: c?.name ?? id };
     });
     const party: PartySnapshot =
       role === 'display'
-        ? { ...merged, characters: merged.characters.filter((c) => !hiddenIds.has(c.id)) }
+        ? {
+            ...merged,
+            characters: merged.characters.filter((c) => !hiddenIds.has(String(c.id))),
+          }
         : merged;
     const initiative: InitiativeState =
       role === 'display'

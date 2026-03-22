@@ -308,7 +308,7 @@ export function attachSocketHandlers(
         const hidden = payload.hidden;
         const sid = socket.data.sessionId as string;
         const cur = sessions.get(sid);
-        if (!cur?.party.characters.some((c) => c.id === characterId)) {
+        if (!cur?.party.characters.some((c) => String(c.id) === String(characterId))) {
           socket.emit('error', { message: 'Character not in party' });
           return;
         }
@@ -329,11 +329,13 @@ export function attachSocketHandlers(
         const characterId = payload.characterId;
         const sid = socket.data.sessionId as string;
         sessions.update(sid, (s) => {
+          const rid = String(characterId);
           s.party = {
             ...s.party,
-            characters: s.party.characters.filter((c) => c.id !== characterId),
+            characters: s.party.characters.filter((c) => String(c.id) !== rid),
           };
           delete s.manualOverrides[characterId];
+          delete s.manualOverrides[rid];
           s.initiative = Initiative.removeByEntityId(s.initiative, characterId);
           s.timedEffects = s.timedEffects.filter((e) => e.entityId !== characterId);
         });
