@@ -1,3 +1,4 @@
+export * from './avatars.js';
 export * from './character.js';
 export * from './initiative.js';
 export * from './layout.js';

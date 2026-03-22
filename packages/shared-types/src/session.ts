@@ -1,5 +1,5 @@
 import type { NormalizedCharacter, PartySnapshot } from './character.js';
-import type { InitiativeState } from './initiative.js';
+import type { InitiativeCombatTag, InitiativeRollBreakdown, InitiativeState, RollMode } from './initiative.js';
 import type { TableLayout } from './layout.js';
 import type { PartyCardDisplayOptions } from './party-card-display.js';
 import type { TableTheme } from './themes.js';
@@ -25,8 +25,23 @@ export interface NpcTemplate {
   defaultMaxHp: number;
 }
 
+/** Captured when hiding a PC that had an initiative row; used for “unhide with saved roll”. */
+export interface HiddenInitiativeSnapshot {
+  initiativeTotal: number;
+  mod: number;
+  rollMode: RollMode;
+  rollBreakdown?: InitiativeRollBreakdown;
+  combatTags?: InitiativeCombatTag[];
+}
+
 /** Party members hidden from TV/phone party + initiative (`manualOverrides.hiddenFromTable`); listed for unhide on phone. */
-export type HiddenPartyMember = { id: string; name: string };
+export type HiddenPartyMember = {
+  id: string;
+  name: string;
+  /** Present when a snapshot was stored at hide time (PC was on the tracker). */
+  hasSavedSnapshot?: boolean;
+  savedInitiativeTotal?: number;
+};
 
 export interface PublicSessionState {
   sessionId: string;
@@ -70,6 +85,8 @@ export interface SessionRecord {
     Partial<Pick<NormalizedCharacter, 'currentHp' | 'tempHp' | 'conditions' | 'absent'>> & {
       /** When true, omit from display party + initiative; excluded from begin-combat rolls. */
       hiddenFromTable?: boolean;
+      /** Initiative row data saved when hiding (for restore on unhide). */
+      hiddenInitiativeSnapshot?: HiddenInitiativeSnapshot | null;
     }
   >;
   diceLog: DiceLogEntry[];

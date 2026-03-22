@@ -28,6 +28,9 @@ export type ClientToServerEvents = {
     entityId?: string;
     mod?: number;
     groupId?: string;
+    avatarUrl?: string;
+    /** Roll d20+mod for the new row only, then sort (phone quick-add). */
+    rollAndSort?: boolean;
   }) => void;
   'initiative:remove': (payload: { entryId: string }) => void;
   'initiative:toggleLock': (payload: { entryId: string }) => void;
@@ -38,7 +41,12 @@ export type ClientToServerEvents = {
   /** DM only: mark PC absent (dim party card, remove from initiative). */
   'party:setAbsent': (payload: { characterId: string; absent: boolean }) => void;
   /** DM + display: hide/unhide party member from TV/phone party + initiative. */
-  'party:setHiddenFromTable': (payload: { characterId: string; hidden: boolean }) => void;
+  'party:setHiddenFromTable': (payload: {
+    characterId: string;
+    hidden: boolean;
+    /** When unhiding (`hidden: false`): add back to initiative with a new roll or restore snapshot. */
+    unhideMode?: 'reroll' | 'saved';
+  }) => void;
   /** DM + display: remove a character from the session party (not undoable via unhide). */
   'party:removeCharacter': (payload: { characterId: string }) => void;
   'party:refresh': () => void;

@@ -7,7 +7,11 @@ import type {
   PartySnapshot,
   RollMode,
 } from '@ddb/shared-types';
-import { effectiveInitiativeRollMode, isInitiativeCombatTag } from '@ddb/shared-types';
+import {
+  BUILTIN_GENERIC_PLAYER_AVATAR_URL,
+  effectiveInitiativeRollMode,
+  isInitiativeCombatTag,
+} from '@ddb/shared-types';
 import ConditionTile from './conditions/ConditionTile';
 import InitiativeDualRollReveal from './initiative/InitiativeDualRollReveal';
 import { useSessionRuntimeStore } from '../stores/sessionRuntimeStore';
@@ -127,11 +131,35 @@ const LAYOUT_PREVIEW_INIT: InitiativeState = {
   },
 };
 
+function GenericPlayerAvatar({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden
+    >
+      <circle cx="24" cy="16" r="9" fill="currentColor" fillOpacity="0.35" />
+      <path
+        d="M8 44c2.5-10 8-14 16-14s13.5 4 16 14"
+        stroke="currentColor"
+        strokeOpacity="0.5"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function resolveRow(e: InitiativeEntry, party: PartySnapshot) {
-  const ch = (party.characters ?? []).find((c) => c.id === e.entityId);
+  const ch = (party.characters ?? []).find((c) => String(c.id) === String(e.entityId));
+  const rawAvatar = (ch?.avatarUrl || e.avatarUrl || '').trim();
+  const isBuiltinGeneric = rawAvatar === BUILTIN_GENERIC_PLAYER_AVATAR_URL;
   return {
     label: ch?.name ?? e.label,
-    avatarUrl: (ch?.avatarUrl || e.avatarUrl || '').trim(),
+    avatarUrl: rawAvatar,
+    isBuiltinGeneric,
     conditions: ch?.conditions?.length ? ch.conditions : (e.conditions ?? []),
     bonus: typeof ch?.initiativeBonus === 'number' ? ch.initiativeBonus : e.mod,
   };
@@ -168,7 +196,10 @@ export default function InitiativeTrackerPanel({
   const isDisplay = uiMode === 'display';
 
   const order = visInit.turnOrder.map((id) => visInit.entries[id]).filter(Boolean) as InitiativeEntry[];
-  const partyCharacterIds = useMemo(() => new Set((party.characters ?? []).map((c) => c.id)), [party.characters]);
+  const partyCharacterIds = useMemo(
+    () => new Set((party.characters ?? []).map((c) => String(c.id))),
+    [party.characters],
+  );
 
   const onRowClick = (entryId: string) => {
     if (!canAct) return;
@@ -281,7 +312,7 @@ export default function InitiativeTrackerPanel({
               : '';
 
           const showHideFromTableBar =
-            canAct && allowCombatCueControls && large && e.entityId && partyCharacterIds.has(e.entityId);
+            canAct && allowCombatCueControls && large && e.entityId && partyCharacterIds.has(String(e.entityId));
 
           return (
             <li key={e.id}>
@@ -314,7 +345,15 @@ export default function InitiativeTrackerPanel({
                   >
                     {idx + 1}
                   </span>
-                  {row.avatarUrl ? (
+                  {row.isBuiltinGeneric ? (
+                    <div
+                      className={`rounded-lg bg-white/10 text-slate-300 flex items-center justify-center shrink-0 ${
+                        large ? 'h-16 w-16 md:h-20 md:w-20' : 'h-12 w-12'
+                      }`}
+                    >
+                      <GenericPlayerAvatar className={large ? 'h-12 w-12 md:h-14 md:w-14' : 'h-8 w-8'} />
+                    </div>
+                  ) : row.avatarUrl ? (
                     <img
                       src={row.avatarUrl}
                       alt=""

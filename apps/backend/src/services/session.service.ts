@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { randomDisplayGatePin } from '../util/display-gate-pin.js';
 import type {
   DiceLogEntry,
+  HiddenInitiativeSnapshot,
   InitiativeState,
   NormalizedCharacter,
   NpcTemplate,
@@ -159,7 +160,15 @@ export class SessionService {
     );
     const hiddenPartyMembers = [...hiddenIds].map((id) => {
       const c = session.party.characters.find((x) => String(x.id) === id);
-      return { id, name: c?.name ?? id };
+      const snap = session.manualOverrides[id]?.hiddenInitiativeSnapshot;
+      const hasSavedSnapshot = !!snap;
+      return {
+        id,
+        name: c?.name ?? id,
+        ...(hasSavedSnapshot
+          ? { hasSavedSnapshot: true, savedInitiativeTotal: snap!.initiativeTotal }
+          : {}),
+      };
     });
     const party: PartySnapshot =
       role === 'display'
@@ -236,6 +245,7 @@ export class SessionService {
     characterId: string,
     patch: Partial<Pick<NormalizedCharacter, 'currentHp' | 'tempHp' | 'conditions' | 'absent'>> & {
       hiddenFromTable?: boolean;
+      hiddenInitiativeSnapshot?: HiddenInitiativeSnapshot | null;
     },
   ): void {
     session.manualOverrides[characterId] = {

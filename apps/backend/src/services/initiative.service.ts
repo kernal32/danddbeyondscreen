@@ -3,6 +3,7 @@ import {
   isInitiativeCombatTag,
   type InitiativeCombatTag,
   type InitiativeEntry,
+  type InitiativeRollBreakdown,
   type InitiativeState,
   type NormalizedCharacter,
   type RollMode,
@@ -53,12 +54,15 @@ export function addCombatant(
     rollMode?: RollMode;
     avatarUrl?: string;
     conditions?: string[];
+    rollBreakdown?: InitiativeRollBreakdown;
+    combatTags?: InitiativeCombatTag[];
   },
 ): InitiativeState {
   const id = newId();
   const entityId = input.entityId ?? id;
   const mod = input.mod ?? 0;
   const rollMode = input.rollMode ?? 'normal';
+  const rb = input.rollBreakdown;
   const entry: InitiativeEntry = {
     id,
     entityId,
@@ -72,6 +76,16 @@ export function addCombatant(
     groupId: input.groupId,
     ...(input.avatarUrl ? { avatarUrl: input.avatarUrl } : {}),
     ...(input.conditions?.length ? { conditions: [...input.conditions] } : {}),
+    ...(rb
+      ? {
+          rollBreakdown: {
+            rolls: [...rb.rolls],
+            kept: rb.kept,
+            mod: rb.mod,
+          },
+        }
+      : {}),
+    ...(input.combatTags?.length ? { combatTags: [...input.combatTags] } : {}),
   };
   return {
     ...state,
@@ -118,6 +132,16 @@ export function removeByEntityId(state: InitiativeState, entityId: string): Init
     next = removeCombatant(next, id);
   }
   return next;
+}
+
+/** First initiative row for this party `entityId` (stable snapshot source before remove). */
+export function findEntryByEntityId(state: InitiativeState, entityId: string): InitiativeEntry | undefined {
+  const want = String(entityId);
+  for (const id of state.turnOrder) {
+    const e = state.entries[id];
+    if (e && String(e.entityId) === want) return e;
+  }
+  return undefined;
 }
 
 /** Strip rows whose `entityId` is in `excludeEntityIds` (e.g. hidden-from-table party members for display clients). */

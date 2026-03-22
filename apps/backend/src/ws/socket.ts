@@ -6,7 +6,32 @@ import { effectiveDdbCookie } from '../services/ddb-session-cookie.js';
 import * as Initiative from '../services/initiative.service.js';
 import { randomUUID } from 'node:crypto';
 import { parseTableLayoutPayload } from '../util/table-layout.js';
-import { isInitiativeCombatTag, isTableTheme, parsePartyCardDisplayPayload } from '@ddb/shared-types';
+import {
+  isInitiativeCombatTag,
+  isTableTheme,
+  parsePartyCardDisplayPayload,
+  type HiddenInitiativeSnapshot,
+  type InitiativeEntry,
+} from '@ddb/shared-types';
+
+function entryToHiddenSnapshot(e: InitiativeEntry): HiddenInitiativeSnapshot {
+  const out: HiddenInitiativeSnapshot = {
+    initiativeTotal: e.initiativeTotal,
+    mod: e.mod,
+    rollMode: e.rollMode,
+  };
+  if (e.rollBreakdown) {
+    out.rollBreakdown = {
+      rolls: [...e.rollBreakdown.rolls],
+      kept: e.rollBreakdown.kept,
+      mod: e.rollBreakdown.mod,
+    };
+  }
+  if (e.combatTags?.length) {
+    out.combatTags = [...e.combatTags];
+  }
+  return out;
+}
 
 export function attachSocketHandlers(
   io: Server,
@@ -131,15 +156,39 @@ export function attachSocketHandlers(
       });
     });
 
-    socket.on('initiative:add', (payload: { label: string; entityId?: string; mod?: number; groupId?: string }) => {
-      dmOnly(() => {
-        const sid = socket.data.sessionId as string;
-        sessions.update(sid, (s) => {
-          s.initiative = Initiative.addCombatant(s.initiative, payload);
+    socket.on(
+      'initiative:add',
+      (payload: {
+        label?: string;
+        entityId?: string;
+        mod?: number;
+        groupId?: string;
+        avatarUrl?: string;
+        rollAndSort?: boolean;
+      }) => {
+        displayOrDm(() => {
+          const label = typeof payload?.label === 'string' ? payload.label.trim() : '';
+          if (!label) return;
+          const sid = socket.data.sessionId as string;
+          sessions.update(sid, (s) => {
+            const beforeOrder = [...s.initiative.turnOrder];
+            s.initiative = Initiative.addCombatant(s.initiative, {
+              label,
+              entityId: payload.entityId,
+              mod: payload.mod,
+              groupId: payload.groupId,
+              avatarUrl: payload.avatarUrl,
+            });
+            const newEntryId = s.initiative.turnOrder.find((id) => !beforeOrder.includes(id));
+            if (payload.rollAndSort && newEntryId) {
+              s.initiative = Initiative.rollInitiative(s.initiative, newEntryId);
+              s.initiative = Initiative.sortInitiative(s.initiative);
+            }
+          });
+          broadcast(sid);
         });
-        broadcast(sid);
-      });
-    });
+      },
+    );
 
     socket.on('initiative:remove', (payload: { entryId: string }) => {
       displayOrDm(() => {
@@ -301,27 +350,86 @@ export function attachSocketHandlers(
       });
     });
 
-    socket.on('party:setHiddenFromTable', (payload: { characterId?: string; hidden?: boolean }) => {
-      displayOrDm(() => {
-        if (typeof payload?.characterId !== 'string' || typeof payload.hidden !== 'boolean') return;
-        const characterId = payload.characterId;
-        const hidden = payload.hidden;
-        const sid = socket.data.sessionId as string;
-        const cur = sessions.get(sid);
-        if (!cur?.party.characters.some((c) => String(c.id) === String(characterId))) {
-          socket.emit('error', { message: 'Character not in party' });
-          return;
-        }
-        sessions.update(sid, (s) => {
-          sessions.setManualOverride(s, characterId, { hiddenFromTable: hidden });
-          if (hidden) {
-            s.initiative = Initiative.removeByEntityId(s.initiative, characterId);
-            s.timedEffects = s.timedEffects.filter((e) => e.entityId !== characterId);
+    socket.on(
+      'party:setHiddenFromTable',
+      (payload: { characterId?: string; hidden?: boolean; unhideMode?: 'reroll' | 'saved' }) => {
+        displayOrDm(() => {
+          if (typeof payload?.characterId !== 'string' || typeof payload.hidden !== 'boolean') return;
+          const characterId = payload.characterId;
+          const rid = String(characterId);
+          const hidden = payload.hidden;
+          const sid = socket.data.sessionId as string;
+          const cur = sessions.get(sid);
+          if (!cur?.party.characters.some((c) => String(c.id) === rid)) {
+            socket.emit('error', { message: 'Character not in party' });
+            return;
           }
+          sessions.update(sid, (s) => {
+            if (hidden) {
+              const entry = Initiative.findEntryByEntityId(s.initiative, rid);
+              sessions.setManualOverride(s, rid, {
+                hiddenFromTable: true,
+                hiddenInitiativeSnapshot: entry ? entryToHiddenSnapshot(entry) : null,
+              });
+              s.initiative = Initiative.removeByEntityId(s.initiative, rid);
+              s.timedEffects = s.timedEffects.filter((e) => String(e.entityId) !== rid);
+              return;
+            }
+
+            const snap =
+              s.manualOverrides[rid]?.hiddenInitiativeSnapshot ??
+              s.manualOverrides[characterId]?.hiddenInitiativeSnapshot;
+            const wantSaved = payload.unhideMode === 'saved' && !!snap;
+            sessions.setManualOverride(s, rid, { hiddenFromTable: false, hiddenInitiativeSnapshot: null });
+
+            if (Initiative.findEntryByEntityId(s.initiative, rid)) {
+              return;
+            }
+
+            const merged = mergePartyOverrides(s.party, s.manualOverrides);
+            const c = merged.characters.find((x) => String(x.id) === rid);
+            if (!c || c.absent) return;
+
+            const modFromSheet =
+              typeof c.initiativeBonus === 'number' && Number.isFinite(c.initiativeBonus)
+                ? c.initiativeBonus
+                : 0;
+
+            if (wantSaved && snap) {
+              s.initiative = Initiative.addCombatant(s.initiative, {
+                label: c.name,
+                entityId: String(c.id),
+                mod: snap.mod,
+                avatarUrl: c.avatarUrl || undefined,
+                conditions: c.conditions.length ? [...c.conditions] : undefined,
+                initiativeTotal: snap.initiativeTotal,
+                rollMode: snap.rollMode,
+                rollBreakdown: snap.rollBreakdown,
+                combatTags: snap.combatTags,
+              });
+            } else {
+              const lenBefore = s.initiative.turnOrder.length;
+              s.initiative = Initiative.addCombatant(s.initiative, {
+                label: c.name,
+                entityId: String(c.id),
+                mod: modFromSheet,
+                avatarUrl: c.avatarUrl || undefined,
+                conditions: c.conditions.length ? [...c.conditions] : undefined,
+              });
+              const newEntryId =
+                s.initiative.turnOrder.length > lenBefore
+                  ? s.initiative.turnOrder[s.initiative.turnOrder.length - 1]
+                  : undefined;
+              if (newEntryId) {
+                s.initiative = Initiative.rollInitiative(s.initiative, newEntryId);
+              }
+            }
+            s.initiative = Initiative.sortInitiative(s.initiative);
+          });
+          broadcast(sid);
         });
-        broadcast(sid);
-      });
-    });
+      },
+    );
 
     socket.on('party:removeCharacter', (payload: { characterId?: string }) => {
       displayOrDm(() => {
