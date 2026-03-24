@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import type { PartyCardDisplayOptions, TableLayout } from '@ddb/shared-types';
-import { parsePartyCardDisplayPayload } from '@ddb/shared-types';
+import type { PartyCardDisplayOptions, TableLayout, UserThemePreferences } from '@ddb/shared-types';
+import { parsePartyCardDisplayPayload, parseUserThemePreferences } from '@ddb/shared-types';
 import { signUserJwt, verifyUserJwt } from '../auth/user-jwt.js';
 import type { UserAuthService } from '../services/user-auth.service.js';
 import type { UserPreferencesService } from '../services/user-preferences.service.js';
@@ -76,6 +76,7 @@ export function registerAuthRoutes(
         ddbCookie: p.ddbCookie,
         tableLayout: p.tableLayout,
         partyCardDisplay: p.partyCardDisplay,
+        themePreferences: p.themePreferences,
       },
     };
   });
@@ -86,6 +87,7 @@ export function registerAuthRoutes(
       ddbCookie: string | null;
       tableLayout: TableLayout | null;
       partyCardDisplay: PartyCardDisplayOptions | null;
+      themePreferences: UserThemePreferences | null;
     }>;
   }>('/api/me/preferences', async (req, reply) => {
     const tok = parseBearer(req.headers.authorization);
@@ -115,6 +117,12 @@ export function registerAuthRoutes(
         ddbCookie: body.ddbCookie,
         tableLayout: body.tableLayout === undefined ? undefined : body.tableLayout,
         partyCardDisplay: body.partyCardDisplay === undefined ? undefined : body.partyCardDisplay,
+        themePreferences:
+          body.themePreferences === undefined
+            ? undefined
+            : body.themePreferences === null
+              ? null
+              : parseUserThemePreferences(body.themePreferences as unknown),
       });
       return { ok: true };
     } catch (e) {

@@ -4,81 +4,106 @@ function $(id) {
   return document.getElementById(id);
 }
 
-async function loadSettings() {
-  const s = await chrome.storage.local.get(['backend', 'sessionId', 'dmToken']);
-  $('backend').value = s.backend || 'http://127.0.0.1:3001';
-  $('sessionId').value = s.sessionId || '';
-  $('dmToken').value = s.dmToken || '';
+function setStatus(message, kind) {
+  const el = $('status');
+  el.textContent = message;
+  el.className = kind || '';
+}
+
+function formatWhen(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.valueOf())) return '—';
+  return d.toLocaleString();
+}
+
+function formatStatusBlock(status) {
+  const t = status.telemetry || {};
+  const lines = [
+    `State: ${t.state || 'idle'}`,
+    `Campaign ID: ${status.campaignId || '—'}`,
+    `API key set: ${status.apiKeyConfigured ? 'yes' : 'no'}`,
+    `Last success: ${formatWhen(t.lastSuccessAt)}`,
+    `Last attempt: ${formatWhen(t.lastAttemptAt)}`,
+    `Next poll: ${formatWhen(t.nextPollAt)}`,
+    `Alarm: ${formatWhen(status.alarmScheduledFor)}`,
+    `Last count: ${t.lastCharacterCount || 0}`,
+  ];
+  if (t.lastError) lines.push(`Last error: ${t.lastError}`);
+  return lines.join('\n');
+}
+
+async function sendMessage(type, payload) {
+  const res = await chrome.runtime.sendMessage({ type, payload });
+  if (!res || !res.ok) throw new Error((res && res.error) || 'Operation failed');
+  return res.result;
+}
+
+function hydrateForm(status) {
+  $('backendValue').textContent = status.backend || 'https://dnd.saltbushlabs.com';
+  $('campaignInput').value = status.campaignInput || '';
+  if (!status.apiKeyConfigured) $('apiKey').value = '';
+  $('pollIntervalMs').value = String(status.pollIntervalMs || 180000);
+  $('pollingEnabled').checked = status.pollingEnabled === true;
+  $('liveStatus').textContent = formatStatusBlock(status);
+}
+
+async function refreshStatus() {
+  const status = await sendMessage('get-status');
+  hydrateForm(status);
+  return status;
 }
 
 async function saveSettings() {
-  await chrome.storage.local.set({
-    backend: $('backend').value.trim().replace(/\/$/, ''),
-    sessionId: $('sessionId').value.trim(),
-    dmToken: $('dmToken').value.trim(),
-  });
+  const apiKeyInput = $('apiKey').value.trim();
+  const payload = {
+    campaignInput: $('campaignInput').value.trim(),
+    apiKey: apiKeyInput,
+    pollIntervalMs: Number($('pollIntervalMs').value),
+    pollingEnabled: $('pollingEnabled').checked,
+  };
+  const status = await sendMessage('save-settings', payload);
+  hydrateForm(status);
+  if (apiKeyInput) $('apiKey').value = '';
   setStatus('Settings saved.', 'ok');
 }
 
-async function buildCookieHeader() {
-  const url = 'https://www.dndbeyond.com/';
-  const all = await chrome.cookies.getAll({ url });
-  return all.map((c) => `${c.name}=${c.value}`).join('; ');
+async function togglePolling() {
+  const status = await sendMessage('set-polling-enabled', {
+    enabled: $('pollingEnabled').checked,
+  });
+  hydrateForm(status);
+  setStatus(status.pollingEnabled ? 'Polling enabled.' : 'Polling disabled.', 'ok');
 }
 
-function setStatus(msg, cls) {
-  const el = $('status');
-  el.textContent = msg;
-  el.className = cls || '';
-}
-
-async function syncCookies() {
-  const backend = $('backend').value.trim().replace(/\/$/, '');
-  const sessionId = $('sessionId').value.trim();
-  const dmToken = $('dmToken').value.trim();
-  if (!backend.startsWith('http://127.0.0.1') && !backend.startsWith('http://localhost')) {
-    setStatus('Only http://127.0.0.1 or http://localhost are allowed (safety).', 'err');
-    return;
-  }
-  if (!sessionId || !dmToken) {
-    setStatus('Session ID and DM token are required.', 'err');
-    return;
-  }
-  setStatus('Reading cookies…', '');
-  let cookie;
-  try {
-    cookie = await buildCookieHeader();
-  } catch (e) {
-    setStatus('Could not read cookies: ' + e, 'err');
-    return;
-  }
-  if (!cookie) {
-    setStatus('No cookies for dndbeyond.com. Log in on the site in this browser.', 'err');
-    return;
-  }
-  setStatus('Sending…', '');
-  try {
-    const res = await fetch(`${backend}/api/sessions/${encodeURIComponent(sessionId)}/dndbeyond/cookie`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + dmToken,
-      },
-      body: JSON.stringify({ cookie }),
-    });
-    const text = await res.text();
-    if (!res.ok) {
-      setStatus('Failed: ' + res.status + ' ' + text, 'err');
-      return;
-    }
-    setStatus('Success. Refresh party from the DM console.', 'ok');
-  } catch (e) {
-    setStatus('Network error: ' + e.message, 'err');
-  }
+async function refreshNow() {
+  setStatus('Running poll now…', '');
+  const result = await sendMessage('refresh-now');
+  const status = await sendMessage('get-status');
+  hydrateForm(status);
+  const warnings = Array.isArray(result.warnings) && result.warnings.length > 0;
+  setStatus(
+    warnings
+      ? `Upload succeeded (${result.characterCount} characters) with warnings.`
+      : `Upload succeeded (${result.characterCount} characters).`,
+    warnings ? 'err' : 'ok',
+  );
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  void loadSettings();
-  $('save').addEventListener('click', () => void saveSettings());
-  $('sync').addEventListener('click', () => void syncCookies());
+  void refreshStatus().catch((e) => setStatus(e.message || String(e), 'err'));
+  $('save').addEventListener('click', () => {
+    void saveSettings().catch((e) => setStatus(e.message || String(e), 'err'));
+  });
+  $('pollingEnabled').addEventListener('change', () => {
+    void togglePolling().catch((e) => setStatus(e.message || String(e), 'err'));
+  });
+  $('refreshNow').addEventListener('click', () => {
+    void refreshNow().catch((e) => setStatus(e.message || String(e), 'err'));
+  });
+  $('reloadStatus').addEventListener('click', () => {
+    void refreshStatus()
+      .then(() => setStatus('Status refreshed.', 'ok'))
+      .catch((e) => setStatus(e.message || String(e), 'err'));
+  });
 });

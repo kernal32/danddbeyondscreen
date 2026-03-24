@@ -1,6 +1,11 @@
 import type Database from 'better-sqlite3';
-import type { PartyCardDisplayOptions, SessionRecord, TableLayout } from '@ddb/shared-types';
-import { parsePartyCardDisplayPayload } from '@ddb/shared-types';
+import type {
+  PartyCardDisplayOptions,
+  SessionRecord,
+  TableLayout,
+  UserThemePreferences,
+} from '@ddb/shared-types';
+import { parsePartyCardDisplayPayload, parseUserThemePreferences } from '@ddb/shared-types';
 import { encryptSecretField, decryptSecretField } from '../auth/field-crypto.js';
 import { parseTableLayoutPayload } from '../util/table-layout.js';
 import type { SessionService } from './session.service.js';
@@ -12,6 +17,7 @@ export type UserPreferencesSnapshot = {
   ddbCookie: string | null;
   tableLayout: TableLayout | null;
   partyCardDisplay: PartyCardDisplayOptions | null;
+  themePreferences: UserThemePreferences;
 };
 
 export type UserPreferencesPatch = {
@@ -19,6 +25,15 @@ export type UserPreferencesPatch = {
   ddbCookie?: string | null;
   tableLayout?: TableLayout | null;
   partyCardDisplay?: PartyCardDisplayOptions | null;
+  themePreferences?: UserThemePreferences | null;
+};
+
+type PrefRow = {
+  default_seed_character_id: number | null;
+  ddb_cookie_cipher: string | null;
+  table_layout_json: string | null;
+  party_card_display_json: string | null;
+  theme_preferences_json: string | null;
 };
 
 export class UserPreferencesService {
@@ -30,19 +45,18 @@ export class UserPreferencesService {
   getSnapshot(userId: string): UserPreferencesSnapshot {
     const row = this.db
       .prepare(
-        'SELECT default_seed_character_id, ddb_cookie_cipher, table_layout_json, party_card_display_json FROM user_preferences WHERE user_id = ?',
+        'SELECT default_seed_character_id, ddb_cookie_cipher, table_layout_json, party_card_display_json, theme_preferences_json FROM user_preferences WHERE user_id = ?',
       )
-      .get(userId) as
-      | {
-          default_seed_character_id: number | null;
-          ddb_cookie_cipher: string | null;
-          table_layout_json: string | null;
-          party_card_display_json: string | null;
-        }
-      | undefined;
+      .get(userId) as PrefRow | undefined;
 
     if (!row) {
-      return { defaultSeedCharacterId: null, ddbCookie: null, tableLayout: null, partyCardDisplay: null };
+      return {
+        defaultSeedCharacterId: null,
+        ddbCookie: null,
+        tableLayout: null,
+        partyCardDisplay: null,
+        themePreferences: parseUserThemePreferences(null),
+      };
     }
 
     let ddbCookie: string | null = null;
@@ -70,6 +84,15 @@ export class UserPreferencesService {
       }
     }
 
+    let themePreferences = parseUserThemePreferences(null);
+    if (row.theme_preferences_json) {
+      try {
+        themePreferences = parseUserThemePreferences(JSON.parse(row.theme_preferences_json) as unknown);
+      } catch {
+        /* ignore */
+      }
+    }
+
     return {
       defaultSeedCharacterId:
         row.default_seed_character_id != null && Number.isFinite(row.default_seed_character_id)
@@ -78,22 +101,16 @@ export class UserPreferencesService {
       ddbCookie,
       tableLayout,
       partyCardDisplay,
+      themePreferences,
     };
   }
 
   save(userId: string, patch: UserPreferencesPatch): void {
     const cur = this.db
       .prepare(
-        'SELECT default_seed_character_id, ddb_cookie_cipher, table_layout_json, party_card_display_json FROM user_preferences WHERE user_id = ?',
+        'SELECT default_seed_character_id, ddb_cookie_cipher, table_layout_json, party_card_display_json, theme_preferences_json FROM user_preferences WHERE user_id = ?',
       )
-      .get(userId) as
-      | {
-          default_seed_character_id: number | null;
-          ddb_cookie_cipher: string | null;
-          table_layout_json: string | null;
-          party_card_display_json: string | null;
-        }
-      | undefined;
+      .get(userId) as PrefRow | undefined;
 
     if (!cur) return;
 
@@ -138,6 +155,16 @@ export class UserPreferencesService {
       }
     }
 
+    let themePrefJson = cur.theme_preferences_json;
+    if (patch.themePreferences !== undefined) {
+      if (patch.themePreferences === null) {
+        themePrefJson = null;
+      } else {
+        const normalized = parseUserThemePreferences(patch.themePreferences as unknown);
+        themePrefJson = JSON.stringify(normalized);
+      }
+    }
+
     this.db
       .prepare(
         `UPDATE user_preferences SET
@@ -145,10 +172,11 @@ export class UserPreferencesService {
           ddb_cookie_cipher = ?,
           table_layout_json = ?,
           party_card_display_json = ?,
+          theme_preferences_json = ?,
           updated_at = ?
         WHERE user_id = ?`,
       )
-      .run(seed, cipher, layoutJson, partyCardJson, Date.now(), userId);
+      .run(seed, cipher, layoutJson, partyCardJson, themePrefJson, Date.now(), userId);
   }
 
   /** Copy saved prefs into a new in-memory game session (e.g. after POST /api/sessions). */
@@ -157,5 +185,18 @@ export class UserPreferencesService {
     if (snap.defaultSeedCharacterId != null) sessions.setSeed(session, snap.defaultSeedCharacterId);
     if (snap.tableLayout) sessions.setTableLayout(session, snap.tableLayout);
     if (snap.partyCardDisplay) sessions.setPartyCardDisplay(session, snap.partyCardDisplay);
+
+    const tp = snap.themePreferences;
+    const pref = tp.preferredDefault;
+    if (pref?.kind === 'builtin') {
+      sessions.setTheme(session, pref.theme);
+      sessions.setThemePalette(session, null);
+    } else if (pref?.kind === 'custom') {
+      const c = tp.savedCustomThemes.find((t) => t.id === pref.id);
+      if (c) {
+        sessions.setTheme(session, c.baseTheme);
+        sessions.setThemePalette(session, c.palette);
+      }
+    }
   }
 }

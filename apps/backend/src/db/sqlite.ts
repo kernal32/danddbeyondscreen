@@ -53,5 +53,8 @@ export function openAppDatabase(dbPath: string): Database.Database {
   if (!prefCols.some((c) => c.name === 'party_card_display_json')) {
     db.exec(`ALTER TABLE user_preferences ADD COLUMN party_card_display_json TEXT`);
   }
+  if (!prefCols.some((c) => c.name === 'theme_preferences_json')) {
+    db.exec(`ALTER TABLE user_preferences ADD COLUMN theme_preferences_json TEXT`);
+  }
   return db;
 }

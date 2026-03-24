@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import type { PartyCardDisplayOptions, PlayerCardSectionId, SpellSlotSummary } from '@ddb/shared-types';
+import type { ClassResourceSummary, PartyCardDisplayOptions, PlayerCardSectionId } from '@ddb/shared-types';
 import { effectivePlayerCardSectionOrder } from '@ddb/shared-types';
 import type { PlayerCardData, TvPartyGridDensity } from './types';
 import { formatConditionLabel } from '../../util/formatConditionLabel';
@@ -13,6 +13,7 @@ import {
 } from '../party/PartyCardStatIcons';
 import ConditionTile from '../conditions/ConditionTile';
 import ArmorClassShieldBadge from './ArmorClassShieldBadge';
+import SpellSaveBookBadge from './SpellSaveBookBadge';
 
 const SPELL_ORD = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
 
@@ -80,7 +81,7 @@ function playerCardScale(large: boolean, tvDensity: TvPartyGridDensity | undefin
       primaryHero: 'text-3xl font-bold tabular-nums',
       acValueNumeral: 'text-4xl font-bold tabular-nums',
       statIconFrame: 'h-28 w-28',
-      acShieldCaption: 'text-[9px] font-semibold uppercase tracking-[0.14em] text-sky-300/95',
+      acShieldCaption: 'text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--ac-caption)]',
     };
   }
   const d = tvDensity ?? 'cozy';
@@ -111,7 +112,7 @@ function playerCardScale(large: boolean, tvDensity: TvPartyGridDensity | undefin
       primaryHero: 'text-2xl md:text-3xl font-bold tabular-nums',
       acValueNumeral: 'text-3xl md:text-4xl font-bold tabular-nums',
       statIconFrame: 'h-[4.25rem] w-[4.25rem] md:h-20 md:w-20',
-      acShieldCaption: 'text-[7px] md:text-[8px] font-semibold uppercase tracking-[0.12em] text-sky-300/95',
+      acShieldCaption: 'text-[7px] md:text-[8px] font-semibold uppercase tracking-[0.12em] text-[var(--ac-caption)]',
     };
   }
   if (d === 'compact') {
@@ -141,7 +142,7 @@ function playerCardScale(large: boolean, tvDensity: TvPartyGridDensity | undefin
       primaryHero: 'text-3xl md:text-4xl font-bold tabular-nums',
       acValueNumeral: 'text-4xl md:text-5xl font-bold tabular-nums',
       statIconFrame: 'h-28 w-28 md:h-36 md:w-36',
-      acShieldCaption: 'text-[8px] md:text-[9px] font-semibold uppercase tracking-[0.13em] text-sky-300/95',
+      acShieldCaption: 'text-[8px] md:text-[9px] font-semibold uppercase tracking-[0.13em] text-[var(--ac-caption)]',
     };
   }
   return {
@@ -170,7 +171,7 @@ function playerCardScale(large: boolean, tvDensity: TvPartyGridDensity | undefin
     primaryHero: 'text-4xl md:text-5xl font-bold tabular-nums',
     acValueNumeral: 'text-5xl md:text-6xl font-bold tabular-nums',
     statIconFrame: 'h-32 w-32 md:h-40 md:w-40',
-    acShieldCaption: 'text-[9px] md:text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-300/95',
+    acShieldCaption: 'text-[9px] md:text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--ac-caption)]',
   };
 }
 
@@ -202,30 +203,43 @@ function hpPct(d: PlayerCardData): number {
 
 function hpToneClass(d: PlayerCardData): string {
   const p = hpPct(d);
-  if (p <= 0.15) return 'text-red-400';
-  if (p <= 0.5) return 'text-amber-300';
-  return 'text-emerald-400';
+  if (p <= 0.15) return 'text-[var(--danger)]';
+  if (p <= 0.5) return 'text-[var(--hp-mid)]';
+  return 'text-[var(--positive-status)]';
 }
 
 function hpBarClass(d: PlayerCardData): string {
   const p = hpPct(d);
-  if (p <= 0.15) return 'bg-red-500';
-  if (p <= 0.5) return 'bg-amber-500';
-  return 'bg-emerald-500';
+  if (p <= 0.15) return 'bg-[var(--danger)]';
+  if (p <= 0.5) return 'bg-[var(--hp-bar-mid)]';
+  return 'bg-[var(--positive-status)]';
 }
 
 function renderHpHeartIconArea(d: PlayerCardData, sc: PlayerCardScale, primaryIconAreaClass: string): ReactNode {
+  const textOutlineStyle = {
+    textShadow: '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
+  } as const;
   return (
     <div className={primaryIconAreaClass}>
-      <div className={`relative mx-auto shrink-0 overflow-visible ${sc.statIconFrame}`}>
-        <IconHeart
-          className={`-translate-y-1 pointer-events-none absolute inset-0 h-full w-full ${hpToneClass(d)} opacity-90`}
-          aria-hidden
-        />
-        <div className="pointer-events-none absolute inset-0 z-10 flex -translate-y-[3px] flex-col items-center justify-center gap-0.5 px-1 text-center">
-          <div className={`${sc.acValueNumeral} max-w-full leading-none tabular-nums text-white`}>{d.hp.current}</div>
+      <div
+        className={`relative mx-auto flex shrink-0 items-center justify-center overflow-hidden ${sc.statIconFrame}`}
+      >
+        <div className="absolute inset-[3px] flex items-center justify-center overflow-hidden">
+          <IconHeart className="pointer-events-none h-full w-full shrink-0 text-[var(--ac-tint)] opacity-90" aria-hidden />
+        </div>
+        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-0 px-1 text-center">
+          <div
+            className={`${sc.acValueNumeral} max-w-full leading-none tabular-nums text-white`}
+            style={textOutlineStyle}
+          >
+            {d.hp.current}
+          </div>
+          <div className="my-[2px] h-px w-[42%] bg-white/70" />
+          <div className={`${sc.numSm} max-w-full leading-none tabular-nums text-white/90`} style={textOutlineStyle}>
+            {d.hp.max}
+          </div>
           {d.hp.tempHp != null && d.hp.tempHp > 0 && (
-            <div className={`${sc.labelSm} mt-0.5 font-semibold text-sky-400`}>+{d.hp.tempHp} temp</div>
+            <div className={`${sc.labelSm} mt-0.5 font-semibold text-[var(--temp-hp)]`}>+{d.hp.tempHp} temp</div>
           )}
         </div>
       </div>
@@ -247,7 +261,7 @@ function HpBarWithFraction({
   return (
     <div className="flex w-full min-w-0 shrink-0 flex-col items-center gap-[3px]">
       <div
-        className={`w-full text-center tabular-nums ${sc.hpMaxSlash} ${visibleFraction ? 'text-white/90' : 'invisible'}`}
+        className={`w-full text-center tabular-nums ${sc.hpMaxSlash} ${visibleFraction ? 'text-[var(--text)]/90' : 'invisible'}`}
         aria-hidden={!visibleFraction}
       >
         {d.hp.current}/{d.hp.max}
@@ -440,10 +454,10 @@ function PlayerCardHeader({
       {o.showAvatar && (
         <div ref={avatarWrapRef} className="shrink-0">
           {d.avatarUrl ? (
-            <img src={d.avatarUrl} alt="" className={`${sc.avatarBox} object-cover shadow-md border border-white/10`} />
+            <img src={d.avatarUrl} alt="" className={`${sc.avatarBox} border border-[var(--border-subtle)] object-cover shadow-md`} />
           ) : (
             <div
-              className={`${sc.avatarBox} flex items-center justify-center bg-white/5 border border-white/10 font-display text-[var(--accent)] shadow-md ${sc.avatarLetter}`}
+              className={`${sc.avatarBox} flex items-center justify-center border border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--text)_6%,transparent)] font-display text-[var(--accent)] shadow-md ${sc.avatarLetter}`}
             >
               {initial}
             </div>
@@ -491,12 +505,15 @@ function renderPrimaryStats(d: PlayerCardData, o: PartyCardDisplayOptions, sc: P
   const rowGrid =
     n >= 3 ? 'grid-cols-1 sm:grid-cols-3' : n === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1';
 
-  const primaryTile = `rounded-2xl bg-black/20 shadow-md border border-white/5 ${sc.primaryStatTilePad}`;
+  const primaryTile = `rounded-2xl border border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--text)_8%,transparent)] shadow-md ${sc.primaryStatTilePad}`;
   /** Reserve same bottom band as the HP bar so AC / third column icons line up with the heart. */
   const hpBarFootprint = showHp && o.showHitPointsBar;
   /** Icon band: top-aligned, no flex growth (avoids huge gap above HP fraction / AC bar spacer). */
   const primaryIconAreaClass =
     'flex w-full min-w-0 shrink-0 flex-col items-center justify-start px-1 text-center';
+  const primaryTextOutlineStyle = {
+    textShadow: '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
+  } as const;
 
   return (
     <div className="space-y-3">
@@ -514,9 +531,6 @@ function renderPrimaryStats(d: PlayerCardData, o: PartyCardDisplayOptions, sc: P
             {o.showHitPoints && !o.showHitPointsBar ? (
               <>
                 {renderHpHeartIconArea(d, sc, primaryIconAreaClass)}
-                <div className={`w-full shrink-0 text-center tabular-nums ${sc.hpMaxSlash} text-white/90`}>
-                  {d.hp.current}/{d.hp.max}
-                </div>
               </>
             ) : null}
             {o.showHitPointsBar && !o.showHitPoints ? (
@@ -536,6 +550,7 @@ function renderPrimaryStats(d: PlayerCardData, o: PartyCardDisplayOptions, sc: P
                     frameClassName={`relative mx-auto shrink-0 overflow-visible ${sc.statIconFrame}`}
                     captionClassName={sc.acShieldCaption}
                     valueClassName={`${sc.acValueNumeral} leading-none text-white tabular-nums`}
+                    textOutlineStyle={primaryTextOutlineStyle}
                   />
                 </div>
                 <div className="mt-[3px] w-full min-w-0 shrink-0">
@@ -549,6 +564,7 @@ function renderPrimaryStats(d: PlayerCardData, o: PartyCardDisplayOptions, sc: P
                   frameClassName={`relative mx-auto shrink-0 overflow-visible ${sc.statIconFrame}`}
                   captionClassName={sc.acShieldCaption}
                   valueClassName={`${sc.acValueNumeral} leading-none text-white tabular-nums`}
+                  textOutlineStyle={primaryTextOutlineStyle}
                 />
               </div>
             )}
@@ -559,10 +575,13 @@ function renderPrimaryStats(d: PlayerCardData, o: PartyCardDisplayOptions, sc: P
             {hpBarFootprint ? (
               <div className="flex min-h-0 w-full flex-1 flex-col justify-end">
                 <div className={primaryIconAreaClass}>
-                  <div>
-                    <div className={sc.labelSm}>Spell save DC</div>
-                    <div className={`${sc.primaryHero} mt-1 text-[var(--text)] tabular-nums`}>{d.combat!.spellSaveDC}</div>
-                  </div>
+                  <SpellSaveBookBadge
+                    spellSaveDc={d.combat!.spellSaveDC}
+                    frameClassName={`relative mx-auto shrink-0 overflow-visible ${sc.statIconFrame}`}
+                    captionClassName={sc.acShieldCaption}
+                    valueClassName={`${sc.acValueNumeral} leading-none text-white tabular-nums`}
+                    textOutlineStyle={primaryTextOutlineStyle}
+                  />
                 </div>
                 <div className="mt-[3px] w-full min-w-0 shrink-0">
                   <HpBarFootprintSpacer sc={sc} />
@@ -570,10 +589,13 @@ function renderPrimaryStats(d: PlayerCardData, o: PartyCardDisplayOptions, sc: P
               </div>
             ) : (
               <div className={primaryIconAreaClass}>
-                <div>
-                  <div className={sc.labelSm}>Spell save DC</div>
-                  <div className={`${sc.primaryHero} mt-1 text-[var(--text)] tabular-nums`}>{d.combat!.spellSaveDC}</div>
-                </div>
+                <SpellSaveBookBadge
+                  spellSaveDc={d.combat!.spellSaveDC}
+                  frameClassName={`relative mx-auto shrink-0 overflow-visible ${sc.statIconFrame}`}
+                  captionClassName={sc.acShieldCaption}
+                  valueClassName={`${sc.acValueNumeral} leading-none text-white tabular-nums`}
+                  textOutlineStyle={primaryTextOutlineStyle}
+                />
               </div>
             )}
           </div>
@@ -644,11 +666,11 @@ function renderAbilities(d: PlayerCardData, o: PartyCardDisplayOptions, sc: Play
         const v = a[k];
         const m = abilityMod(v);
         return (
-          <div key={k} className="flex items-baseline justify-between gap-2 border-b border-white/5 pb-2">
+          <div key={k} className="flex items-baseline justify-between gap-2 border-b border-[var(--border-subtle)] pb-2">
             <span className={sc.labelSm}>{ABIL_LABEL[k]}</span>
             <span className="text-[var(--text)]">
               <span className={`${sc.numSm} font-mono`}>{v}</span>{' '}
-              <span className="text-violet-300 font-semibold">{fmtMod(m)}</span>
+              <span className="font-semibold text-[var(--ability-mod)]">{fmtMod(m)}</span>
             </span>
           </div>
         );
@@ -665,7 +687,7 @@ function renderSavingThrows(d: PlayerCardData, o: PartyCardDisplayOptions, sc: P
       {ABIL_KEYS.map((k) => (
         <div key={k} className="flex items-baseline justify-between gap-2">
           <span className={sc.labelSm}>{ABIL_LABEL[k]}</span>
-          <span className={`${sc.numSm} text-amber-200/90 font-mono font-semibold`}>{fmtMod(s[k])}</span>
+          <span className={`${sc.numSm} font-mono font-semibold text-[var(--saves-line)]`}>{fmtMod(s[k])}</span>
         </div>
       ))}
     </div>
@@ -741,7 +763,7 @@ function renderClassSummary(d: PlayerCardData, o: PartyCardDisplayOptions, sc: P
   const primaryClass = d.class?.trim();
   const c = d.combat;
   return (
-    <div className="space-y-2 rounded-2xl border border-white/5 bg-black/15 px-4 py-3 shadow-sm">
+    <div className="space-y-2 rounded-2xl border border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--text)_6%,transparent)] px-4 py-3 shadow-sm">
       {lines.map((line) => (
         <p key={line} className={`text-[var(--text)] ${sc.classSummaryLine}`}>
           {line}
@@ -766,21 +788,22 @@ function renderClassSummary(d: PlayerCardData, o: PartyCardDisplayOptions, sc: P
   );
 }
 
-function renderSpellSlots(d: PlayerCardData, o: PartyCardDisplayOptions, sc: PlayerCardScale): ReactNode | null {
-  if (!o.showSpellSlots || !d.spellSlots?.length) return null;
-  return <SpellSlotsRow slots={d.spellSlots} tier={sc.spellSlotTier} />;
-}
+type PooledResourceItem = {
+  key: string;
+  label: string;
+  available: number;
+  used: number;
+};
 
-function SpellSlotsRow({ slots, tier }: { slots: SpellSlotSummary[]; tier: SpellSlotTier }) {
-  const sorted = [...slots].sort((a, b) => a.level - b.level);
+function tierPooledResourceStyles(tier: SpellSlotTier) {
   const head =
     tier === 'desktop'
-      ? { mb: 'mb-1', icon: 'h-5 w-5 shrink-0 text-violet-400', title: 'text-sm font-semibold' }
+      ? { mb: 'mb-1', icon: 'h-5 w-5 shrink-0 text-[var(--icon-spells)]', title: 'text-sm font-semibold' }
       : tier === 'tvDense'
-        ? { mb: 'mb-1', icon: 'h-5 w-5 shrink-0 text-violet-400', title: 'text-xs md:text-sm font-display text-[var(--accent)]' }
+        ? { mb: 'mb-1', icon: 'h-5 w-5 shrink-0 text-[var(--icon-spells)]', title: 'text-xs md:text-sm font-display text-[var(--accent)]' }
         : tier === 'tvCompact'
-          ? { mb: 'mb-1.5', icon: 'h-6 w-6 shrink-0 text-violet-400', title: 'text-sm md:text-base font-display text-[var(--accent)]' }
-          : { mb: 'mb-2', icon: 'h-7 w-7 shrink-0 text-violet-400', title: 'text-lg md:text-xl font-display text-[var(--accent)]' };
+          ? { mb: 'mb-1.5', icon: 'h-6 w-6 shrink-0 text-[var(--icon-spells)]', title: 'text-sm md:text-base font-display text-[var(--accent)]' }
+          : { mb: 'mb-2', icon: 'h-7 w-7 shrink-0 text-[var(--icon-spells)]', title: 'text-lg md:text-xl font-display text-[var(--accent)]' };
   const gap = tier === 'desktop' || tier === 'tvDense' ? 'gap-2' : tier === 'tvCompact' ? 'gap-2 md:gap-2.5' : 'gap-3';
   const pill =
     tier === 'desktop'
@@ -791,34 +814,140 @@ function SpellSlotsRow({ slots, tier }: { slots: SpellSlotSummary[]; tier: Spell
           ? 'px-3 py-1.5 text-sm md:text-base'
           : 'px-4 py-2.5 text-lg md:text-xl';
   const barW = tier === 'desktop' || tier === 'tvDense' ? 'max-w-16' : tier === 'tvCompact' ? 'max-w-[4rem] md:max-w-[4.25rem]' : 'max-w-[4.5rem]';
+  return { head, gap, pill, barW };
+}
 
+function PooledResourcesRow({
+  title,
+  items,
+  tier,
+  labelTitle,
+  showBars,
+  showPips,
+}: {
+  title: string;
+  items: PooledResourceItem[];
+  tier: SpellSlotTier;
+  /** When true, long labels get truncate + native tooltip */
+  labelTitle?: boolean;
+  showBars: boolean;
+  showPips: boolean;
+}) {
+  const { head, gap, pill, barW } = tierPooledResourceStyles(tier);
   return (
     <div className="flex flex-col items-center text-center">
       <div className={`flex items-center justify-center gap-2 ${head.mb} text-[var(--muted)]`}>
         <IconSparkles className={head.icon} />
-        <span className={head.title}>Spell slots</span>
+        <span className={head.title}>{title}</span>
       </div>
       <ul className={`flex flex-wrap justify-center ${gap}`}>
-        {sorted.map((s) => {
+        {items.map((s) => {
           const left = Math.max(0, s.available - s.used);
           if (s.available <= 0 && s.used <= 0) return null;
-          const label = SPELL_ORD[s.level] ?? `${s.level}`;
+          const usePips = showPips && s.available <= 10;
           return (
-            <li key={s.level} className={`rounded-xl bg-black/25 shadow-sm border border-white/10 ${pill}`}>
-              <span className="text-[var(--muted)]">{label}</span>{' '}
-              <span className="font-mono font-semibold text-[var(--text)]">
-                {left}/{s.available}
-              </span>
-              <div className={`mt-1.5 h-1 rounded-full bg-black/40 overflow-hidden ${barW}`}>
-                <div
-                  className="h-full bg-violet-500/80 rounded-full"
-                  style={{ width: s.available > 0 ? `${(left / s.available) * 100}%` : '0%' }}
-                />
-              </div>
+            <li
+              key={s.key}
+              className={`max-w-[min(100%,14rem)] rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--text)_8%,transparent)] shadow-sm ${pill}`}
+            >
+              <span
+                className={`text-[var(--muted)] ${labelTitle ? 'line-clamp-2 break-words' : ''}`}
+                title={labelTitle ? s.label : undefined}
+              >
+                {s.label}
+              </span>{' '}
+              {usePips ? (
+                <span
+                  className="ml-1 inline-flex flex-wrap items-center justify-center gap-1 align-middle"
+                  aria-label={`${left} of ${s.available} remaining`}
+                >
+                  {Array.from({ length: s.available }, (_, ix) => (
+                    <span
+                      // eslint-disable-next-line react/no-array-index-key
+                      key={`${s.key}-pip-${ix}`}
+                      className="inline-block h-2.5 w-2.5 rounded-full border"
+                      style={
+                        ix < left
+                          ? {
+                              borderColor: 'var(--spell-bar)',
+                              backgroundColor: 'var(--spell-bar)',
+                            }
+                          : {
+                              borderColor: 'color-mix(in srgb, var(--spell-bar) 42%, transparent)',
+                              backgroundColor: 'transparent',
+                              opacity: 0.74,
+                            }
+                      }
+                    />
+                  ))}
+                </span>
+              ) : (
+                <span className="font-mono font-semibold text-[var(--text)] tabular-nums">
+                  {left}/{s.available}
+                </span>
+              )}
+              {showBars && !usePips ? (
+                <div className={`mt-1.5 h-1 rounded-full bg-black/40 overflow-hidden ${barW} mx-auto`}>
+                  <div
+                    className="h-full rounded-full bg-[var(--spell-bar)]"
+                    style={{ width: s.available > 0 ? `${(left / s.available) * 100}%` : '0%' }}
+                  />
+                </div>
+              ) : null}
             </li>
           );
         })}
       </ul>
+    </div>
+  );
+}
+
+function renderSpellSlots(d: PlayerCardData, o: PartyCardDisplayOptions, sc: PlayerCardScale): ReactNode | null {
+  if (!o.showSpellSlots) return null;
+  const slots = d.spellSlots ?? [];
+  const resources = d.classResources ?? [];
+  if (!slots.length && !resources.length) return null;
+  const tier = sc.spellSlotTier;
+
+  const slotItems: PooledResourceItem[] = [...slots]
+    .sort((a, b) => a.level - b.level)
+    .map((s) => ({
+      key: `slot-${s.level}`,
+      label: SPELL_ORD[s.level] ?? `${s.level}`,
+      available: s.available,
+      used: s.used,
+    }));
+
+  const resourceItems: PooledResourceItem[] = resources.map((r: ClassResourceSummary, i: number) => ({
+    key: `res-${i}-${r.label}`,
+    label: r.label,
+    available: r.available,
+    used: r.used,
+  }));
+
+  return (
+    <div
+      className={`flex flex-col items-center ${slotItems.length && resourceItems.length ? (tier === 'tvDense' ? 'gap-3' : 'gap-4 md:gap-5') : ''}`}
+    >
+      {slotItems.length > 0 ? (
+        <PooledResourcesRow
+          title="Spell slots"
+          items={slotItems}
+          tier={tier}
+          showBars={o.showSpellSlotBars}
+          showPips={o.showSpellSlotPips}
+        />
+      ) : null}
+      {resourceItems.length > 0 ? (
+        <PooledResourcesRow
+          title="Class resources"
+          items={resourceItems}
+          tier={tier}
+          labelTitle
+          showBars={o.showClassResourceBars}
+          showPips={o.showClassResourcePips}
+        />
+      ) : null}
     </div>
   );
 }
@@ -837,12 +966,12 @@ function renderConditions(d: PlayerCardData, o: PartyCardDisplayOptions, sc: Pla
   const tier = sc.spellSlotTier;
   const head =
     tier === 'desktop'
-      ? { mb: 'mb-1', icon: 'h-5 w-5 shrink-0 text-amber-300', title: 'text-sm font-semibold' }
+      ? { mb: 'mb-1', icon: 'h-5 w-5 shrink-0 text-[var(--icon-conditions)]', title: 'text-sm font-semibold' }
       : tier === 'tvDense'
-        ? { mb: 'mb-1', icon: 'h-5 w-5 shrink-0 text-amber-300', title: 'text-xs md:text-sm font-display text-[var(--accent)]' }
+        ? { mb: 'mb-1', icon: 'h-5 w-5 shrink-0 text-[var(--icon-conditions)]', title: 'text-xs md:text-sm font-display text-[var(--accent)]' }
         : tier === 'tvCompact'
-          ? { mb: 'mb-1.5', icon: 'h-6 w-6 shrink-0 text-amber-300', title: 'text-sm md:text-base font-display text-[var(--accent)]' }
-          : { mb: 'mb-2', icon: 'h-7 w-7 shrink-0 text-amber-300', title: 'text-lg md:text-xl font-display text-[var(--accent)]' };
+          ? { mb: 'mb-1.5', icon: 'h-6 w-6 shrink-0 text-[var(--icon-conditions)]', title: 'text-sm md:text-base font-display text-[var(--accent)]' }
+          : { mb: 'mb-2', icon: 'h-7 w-7 shrink-0 text-[var(--icon-conditions)]', title: 'text-lg md:text-xl font-display text-[var(--accent)]' };
   const gap =
     tier === 'desktop' || tier === 'tvDense' ? 'gap-2' : tier === 'tvCompact' ? 'gap-2 md:gap-2.5' : 'gap-3';
   const tileSize = conditionTileSizeForCard(tier);

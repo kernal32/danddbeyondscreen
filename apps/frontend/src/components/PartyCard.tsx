@@ -1,4 +1,5 @@
 import type { NormalizedCharacter, PartyCardDisplayOptions } from '@ddb/shared-types';
+import ThemedPanel from './ui/ThemedPanel';
 import PlayerCard from './player-card/PlayerCard';
 import { normalizedCharacterToPlayerCardData } from './player-card/mapPlayerCardData';
 import type { TvPartyGridDensity } from './player-card/types';
@@ -21,6 +22,7 @@ export default function PartyCard({
 }) {
   const o = displayOptions;
   const absent = !!c.absent;
+  const inspired = c.inspired === true;
   const tv = !!large;
   const data = normalizedCharacterToPlayerCardData(c);
   const density = tv ? (tvDensity ?? 'cozy') : undefined;
@@ -48,7 +50,7 @@ export default function PartyCard({
       >
         <input
           type="checkbox"
-          className="rounded border-white/30"
+          className="rounded border-[var(--border-strong)]"
           checked={absent}
           onChange={(e) => onAbsentChange(e.target.checked)}
         />
@@ -56,7 +58,7 @@ export default function PartyCard({
       </label>
     ) : absent ? (
       <p
-        className={`text-amber-300/90 ${
+        className={`text-[var(--warn-status)]/90 ${
           tv ? (density === 'dense' ? 'text-xs' : density === 'compact' ? 'text-xs sm:text-sm' : 'text-sm md:text-base') : 'text-xs'
         }`}
       >
@@ -65,11 +67,17 @@ export default function PartyCard({
     ) : undefined;
 
   return (
-    <article
-      className={`rounded-xl border border-white/10 bg-[var(--surface)] shadow-lg min-w-0 ${articlePad} ${
-        absent ? 'opacity-45 saturate-50 border-white/5' : ''
+    <ThemedPanel
+      className={`min-w-0 ${absent ? 'opacity-45 saturate-50' : ''} ${
+        inspired ? '!border-amber-400/70 bg-amber-300/10 ring-1 ring-amber-300/70' : ''
       }`}
+      contentClassName={`${articlePad} relative`}
     >
+      {inspired ? (
+        <span className="pointer-events-none absolute right-2 top-2 rounded-full border border-amber-300/70 bg-amber-300/28 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-50">
+          INSP
+        </span>
+      ) : null}
       <PlayerCard
         data={data}
         displayOptions={o}
@@ -78,12 +86,12 @@ export default function PartyCard({
         headerTrailing={headerTrailing}
       />
       {onHpChange && (
-        <div className="mt-4 flex flex-wrap gap-2 items-center text-sm border-t border-white/10 pt-4">
+        <div className="mt-4 flex flex-wrap gap-2 items-center text-sm border-t border-[var(--border-subtle)] pt-4">
           <label className="flex items-center gap-1">
             HP
             <input
               type="number"
-              className="w-20 rounded bg-black/30 border border-white/20 px-2 py-1"
+              className="w-20 rounded bg-[var(--surface-elevated)] border border-[var(--border-strong)] px-2 py-1 text-[var(--text)]"
               defaultValue={c.currentHp}
               id={`hp-${c.id}`}
             />
@@ -92,14 +100,14 @@ export default function PartyCard({
             Temp
             <input
               type="number"
-              className="w-20 rounded bg-black/30 border border-white/20 px-2 py-1"
+              className="w-20 rounded bg-[var(--surface-elevated)] border border-[var(--border-strong)] px-2 py-1 text-[var(--text)]"
               defaultValue={c.tempHp}
               id={`tmp-${c.id}`}
             />
           </label>
           <button
             type="button"
-            className="rounded bg-sky-700 px-2 py-1 text-white"
+            className="rounded px-2 py-1 text-white bg-[var(--btn-primary-bg)] hover:bg-[var(--btn-primary-hover)]"
             onClick={() => {
               const hp = Number((document.getElementById(`hp-${c.id}`) as HTMLInputElement).value);
               const tmp = Number((document.getElementById(`tmp-${c.id}`) as HTMLInputElement).value);
@@ -110,6 +118,6 @@ export default function PartyCard({
           </button>
         </div>
       )}
-    </article>
+    </ThemedPanel>
   );
 }

@@ -23,6 +23,8 @@ export function normalizedCharacterToPlayerCardData(c: NormalizedCharacter): Pla
     },
     conditions: c.conditions.length > 0 ? [...c.conditions] : undefined,
     spellSlots: c.spellSlots && c.spellSlots.length > 0 ? c.spellSlots : undefined,
+    classResources:
+      c.classResources && c.classResources.length > 0 ? c.classResources : undefined,
     ...(combat ? { combat } : {}),
   };
 }

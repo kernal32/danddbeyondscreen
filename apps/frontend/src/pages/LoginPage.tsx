@@ -32,17 +32,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="theme-minimal min-h-screen flex flex-col items-center justify-center gap-4 p-8 max-w-md mx-auto">
-      <h1 className="text-3xl font-display font-bold text-sky-400">Sign in</h1>
-      <p className="text-slate-400 text-center text-sm">
-        Saves seed and table layout; resume saved tables from Home after sign-in. Tampermonkey API keys live on Account.
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-8 max-w-md mx-auto">
+      <h1 className="text-3xl font-display font-bold text-[var(--accent)]">Sign in</h1>
+      <p className="text-[var(--muted)] text-center text-sm leading-relaxed">
+        Sign in to access saved tables, your layout and party defaults, and optional browser tools linked to your
+        account.
       </p>
       <label className="w-full text-sm text-[var(--muted)]">
         Email
         <input
           type="email"
           autoComplete="email"
-          className="mt-1 w-full rounded-lg bg-black/30 border border-white/20 px-3 py-2 text-[var(--text)]"
+          className="mt-1 w-full rounded-lg bg-[color-mix(in_srgb,var(--surface-elevated)_75%,transparent)] border border-[var(--border-subtle)] px-3 py-2 text-[var(--text)]"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -52,7 +53,7 @@ export default function LoginPage() {
         <input
           type="password"
           autoComplete="current-password"
-          className="mt-1 w-full rounded-lg bg-black/30 border border-white/20 px-3 py-2 text-[var(--text)]"
+          className="mt-1 w-full rounded-lg bg-[color-mix(in_srgb,var(--surface-elevated)_75%,transparent)] border border-[var(--border-subtle)] px-3 py-2 text-[var(--text)]"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
@@ -61,17 +62,17 @@ export default function LoginPage() {
         type="button"
         disabled={loading}
         onClick={() => void submit()}
-        className="w-full rounded-lg bg-sky-600 px-4 py-2 font-semibold text-white hover:bg-sky-500 disabled:opacity-50"
+        className="w-full rounded-lg bg-[var(--btn-primary-bg)] px-4 py-2 font-semibold text-white hover:bg-[var(--btn-primary-hover)] disabled:opacity-50"
       >
         {loading ? 'Signing in…' : 'Sign in'}
       </button>
-      {err && <p className="text-red-400 text-sm text-center">{err}</p>}
+      {err && <p className="text-[var(--danger)] text-sm text-center">{err}</p>}
       <p className="text-sm text-[var(--muted)]">
-        <Link to="/register" className="text-sky-400 hover:underline">
+        <Link to="/register" className="text-[var(--link)] hover:text-[var(--link-hover)] hover:underline">
           Create an account
         </Link>
         {' · '}
-        <Link to="/" className="text-sky-400 hover:underline">
+        <Link to="/" className="text-[var(--link)] hover:text-[var(--link-hover)] hover:underline">
           Home
         </Link>
       </p>

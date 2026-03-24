@@ -51,6 +51,8 @@ export type ClientToServerEvents = {
   'party:removeCharacter': (payload: { characterId: string }) => void;
   'party:refresh': () => void;
   'party:manualHp': (payload: { characterId: string; currentHp?: number; tempHp?: number }) => void;
+  /** Display / phone / DM: override heroic inspiration highlight (wins over D&D Beyond until cleared by toggling). */
+  'party:setInspired': (payload: { characterId: string; inspired: boolean }) => void;
   'party:setConditions': (payload: { characterId: string; conditions: string[] }) => void;
   /** DM + display: highlight who acted last / DM turn gap. */
   'initiative:markEntry': (payload: { entryId: string | null }) => void;
@@ -58,7 +60,7 @@ export type ClientToServerEvents = {
   'initiative:startCombat': () => void;
   /** DM + display: re-roll d20+mod for everyone, sort, jump to first in order. */
   'initiative:rerollAll': () => void;
-  'session:setTheme': (payload: { theme: TableTheme }) => void;
+  'session:setTheme': (payload: { theme: TableTheme; themePalette?: string[] | null }) => void;
   'session:setPartyCardDisplay': (payload: { partyCardDisplay: PartyCardDisplayOptions }) => void;
   'session:setTableLayout': (payload: { tableLayout: TableLayout }) => void;
   'session:setSeed': (payload: { seedCharacterId: number }) => void;
@@ -75,7 +77,7 @@ export type ServerToClientEvents = {
   'state:full': (state: PublicSessionState) => void;
   'party:updated': (party: PartySnapshot) => void;
   'initiative:updated': (initiative: InitiativeState) => void;
-  'session:meta': (payload: { theme: TableTheme }) => void;
+  'session:meta': (payload: { theme: TableTheme; themePalette?: string[] | null }) => void;
   'ddb:warning': (payload: { message: string }) => void;
   'effects:updated': (effects: TimedEffect[]) => void;
   'log:updated': (entries: DiceLogEntry[]) => void;

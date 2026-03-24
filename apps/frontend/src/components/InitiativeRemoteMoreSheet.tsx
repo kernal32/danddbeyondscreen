@@ -1,19 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { HiddenPartyMember, PublicSessionState } from '@ddb/shared-types';
 import { BUILTIN_GENERIC_PLAYER_AVATAR_URL } from '@ddb/shared-types';
+import { IconEye } from './icons/VisibilityEyes';
+import UnhideCharacterDialog from './UnhideCharacterDialog';
 
-function IconEye({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
-      />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
+type HpDraftRow = { cur: string; tmp: string };
 
 export default function InitiativeRemoteMoreSheet({
   open,
@@ -29,6 +20,23 @@ export default function InitiativeRemoteMoreSheet({
   const [removeId, setRemoveId] = useState<string | null>(null);
   const [unhideTarget, setUnhideTarget] = useState<HiddenPartyMember | null>(null);
   const [newExtraName, setNewExtraName] = useState('');
+  const [hpDrafts, setHpDrafts] = useState<Record<string, HpDraftRow>>({});
+  const wasOpenRef = useRef(false);
+
+  useEffect(() => {
+    if (open && !wasOpenRef.current) {
+      setHpDrafts(
+        Object.fromEntries(
+          live.party.characters.map((c) => [
+            String(c.id),
+            { cur: String(c.currentHp), tmp: String(c.tempHp) },
+          ]),
+        ),
+      );
+    }
+    wasOpenRef.current = open;
+  }, [open, live.party.characters]);
+
   const partyIds = useMemo(() => new Set(live.party.characters.map((c) => String(c.id))), [live.party.characters]);
 
   const extraCombatants = useMemo(() => {
@@ -59,33 +67,66 @@ export default function InitiativeRemoteMoreSheet({
           </button>
         </div>
         <div className="space-y-6 p-4 pb-8">
-          <section>
-            <h3 className="mb-2 text-sm font-semibold text-[var(--text)]">NPC templates</h3>
-            <p className="mb-2 text-xs text-[var(--muted)]">Spawn adds a row to initiative (same as DM console).</p>
-            {live.npcTemplates.length === 0 ? (
-              <p className="text-sm text-[var(--muted)]">No templates yet — DM saves them from the console.</p>
+          <details className="rounded-xl border border-white/10 bg-black/10 p-3">
+            <summary className="cursor-pointer list-none font-semibold text-[var(--accent)] [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex items-center gap-2">
+                <span aria-hidden className="text-[var(--muted)]">
+                  ▸
+                </span>
+                Party HP
+              </span>
+            </summary>
+            <p className="mt-2 text-xs text-[var(--muted)]">Set current and temporary HP (pushed to the table via socket).</p>
+            {live.party.characters.length === 0 ? (
+              <p className="mt-2 text-sm text-[var(--muted)]">No party members.</p>
             ) : (
-              <ul className="space-y-2">
-                {live.npcTemplates.map((t) => (
-                  <li key={t.id} className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm">
-                    <span className="text-[var(--text)]">
-                      {t.name}{' '}
-                      <span className="text-[var(--muted)]">
-                        (AC {t.defaultAc}, HP {t.defaultMaxHp})
-                      </span>
-                    </span>
-                    <button
-                      type="button"
-                      className="shrink-0 rounded bg-sky-700 px-2 py-1 text-xs text-white hover:bg-sky-600"
-                      onClick={() => emit('npc:spawnFromTemplate', { templateId: t.id })}
-                    >
-                      Spawn
-                    </button>
-                  </li>
-                ))}
+              <ul className="mt-3 space-y-3">
+                {live.party.characters.map((c) => {
+                  const id = String(c.id);
+                  const row = hpDrafts[id] ?? { cur: String(c.currentHp), tmp: String(c.tempHp) };
+                  return (
+                    <li key={c.id} className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm">
+                      <div className="mb-2 truncate font-medium text-[var(--text)]">{c.name}</div>
+                      <div className="flex flex-wrap items-end gap-2">
+                        <label className="flex flex-col gap-0.5 text-xs text-[var(--muted)]">
+                          Current
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            className="w-24 rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-[var(--text)]"
+                            value={row.cur}
+                            onChange={(e) => setHpDrafts((m) => ({ ...m, [id]: { ...row, cur: e.target.value } }))}
+                          />
+                        </label>
+                        <label className="flex flex-col gap-0.5 text-xs text-[var(--muted)]">
+                          Temp
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            className="w-24 rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-[var(--text)]"
+                            value={row.tmp}
+                            onChange={(e) => setHpDrafts((m) => ({ ...m, [id]: { ...row, tmp: e.target.value } }))}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          className="rounded-lg bg-sky-800 px-3 py-2 text-xs font-medium text-white hover:bg-sky-700"
+                          onClick={() => {
+                            const currentHp = Number.parseInt(row.cur, 10);
+                            const tempHp = Number.parseInt(row.tmp, 10);
+                            if (Number.isNaN(currentHp) || Number.isNaN(tempHp)) return;
+                            emit('party:manualHp', { characterId: id, currentHp, tempHp });
+                          }}
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
-          </section>
+          </details>
 
           <section>
             <h3 className="mb-2 text-sm font-semibold text-[var(--text)]">Hidden from table</h3>
@@ -198,7 +239,7 @@ export default function InitiativeRemoteMoreSheet({
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
           <div className="max-w-sm rounded-xl border border-white/20 bg-[var(--surface)] p-4 shadow-xl">
             <p className="text-sm text-[var(--text)]">Remove this character from the session entirely?</p>
-            <p className="mt-2 text-xs text-[var(--muted)]">This cannot be undone from the phone (re-import party from DM).</p>
+            <p className="mt-2 text-xs text-[var(--muted)]">This cannot be undone from the phone (re-import party from Master).</p>
             <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
@@ -222,58 +263,12 @@ export default function InitiativeRemoteMoreSheet({
         </div>
       ) : null}
 
-      {unhideTarget ? (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
-          <div className="max-w-sm rounded-xl border border-white/20 bg-[var(--surface)] p-4 shadow-xl">
-            <p className="text-sm font-medium text-[var(--text)]">Show {unhideTarget.name} on the table</p>
-            <p className="mt-2 text-xs text-[var(--muted)]">
-              Put them back on initiative with a fresh roll, or restore the initiative total from when they were hidden.
-            </p>
-            <div className="mt-4 flex flex-col gap-2">
-              <button
-                type="button"
-                className="w-full rounded-lg bg-sky-800 px-3 py-2 text-sm text-white hover:bg-sky-700"
-                onClick={() => {
-                  emit('party:setHiddenFromTable', {
-                    characterId: unhideTarget.id,
-                    hidden: false,
-                    unhideMode: 'reroll',
-                  });
-                  setUnhideTarget(null);
-                  onClose();
-                }}
-              >
-                Unhide &amp; reroll
-              </button>
-              <button
-                type="button"
-                disabled={!unhideTarget.hasSavedSnapshot}
-                className="w-full rounded-lg border border-white/20 px-3 py-2 text-sm text-[var(--text)] hover:bg-white/10 disabled:pointer-events-none disabled:opacity-40"
-                onClick={() => {
-                  emit('party:setHiddenFromTable', {
-                    characterId: unhideTarget.id,
-                    hidden: false,
-                    unhideMode: 'saved',
-                  });
-                  setUnhideTarget(null);
-                  onClose();
-                }}
-              >
-                {unhideTarget.hasSavedSnapshot && typeof unhideTarget.savedInitiativeTotal === 'number'
-                  ? `Unhide with saved roll (${unhideTarget.savedInitiativeTotal})`
-                  : 'Unhide with saved roll'}
-              </button>
-              <button
-                type="button"
-                className="mt-1 w-full rounded-lg px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-white/10"
-                onClick={() => setUnhideTarget(null)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <UnhideCharacterDialog
+        member={unhideTarget}
+        onDismiss={() => setUnhideTarget(null)}
+        emit={emit}
+        afterUnhide={onClose}
+      />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import * as Initiative from '../services/initiative.service.js';
 import { randomUUID } from 'node:crypto';
 import { parseTableLayoutPayload } from '../util/table-layout.js';
 import {
+  assertValidThemePalette,
   isInitiativeCombatTag,
   isTableTheme,
   parsePartyCardDisplayPayload,
@@ -20,6 +21,9 @@ function entryToHiddenSnapshot(e: InitiativeEntry): HiddenInitiativeSnapshot {
     mod: e.mod,
     rollMode: e.rollMode,
   };
+  if (e.dexMod != null && Number.isFinite(e.dexMod)) {
+    out.dexMod = e.dexMod;
+  }
   if (e.rollBreakdown) {
     out.rollBreakdown = {
       rolls: [...e.rollBreakdown.rolls],
@@ -325,10 +329,17 @@ export function attachSocketHandlers(
     });
 
     socket.on('party:setConditions', (payload: { characterId: string; conditions: string[] }) => {
-      dmOnly(() => {
+      displayOrDm(() => {
+        if (typeof payload?.characterId !== 'string' || !Array.isArray(payload.conditions)) return;
         const sid = socket.data.sessionId as string;
+        const rid = String(payload.characterId);
+        const cur = sessions.get(sid);
+        if (!cur?.party.characters.some((c) => String(c.id) === rid)) {
+          socket.emit('error', { message: 'Character not in party' });
+          return;
+        }
         sessions.update(sid, (s) => {
-          sessions.setManualOverride(s, payload.characterId, { conditions: payload.conditions });
+          sessions.setManualOverride(s, rid, { conditions: payload.conditions });
         });
         broadcast(sid);
       });
@@ -345,6 +356,23 @@ export function attachSocketHandlers(
           if (absent) {
             s.initiative = Initiative.removeByEntityId(s.initiative, characterId);
           }
+        });
+        broadcast(sid);
+      });
+    });
+
+    socket.on('party:setInspired', (payload: { characterId?: string; inspired?: boolean }) => {
+      displayOrDm(() => {
+        if (typeof payload?.characterId !== 'string' || typeof payload.inspired !== 'boolean') return;
+        const characterId = String(payload.characterId);
+        const sid = socket.data.sessionId as string;
+        const cur = sessions.get(sid);
+        if (!cur?.party.characters.some((c) => String(c.id) === characterId)) {
+          socket.emit('error', { message: 'Character not in party' });
+          return;
+        }
+        sessions.update(sid, (s) => {
+          sessions.setManualOverride(s, characterId, { inspired: payload.inspired });
         });
         broadcast(sid);
       });
@@ -394,8 +422,14 @@ export function attachSocketHandlers(
               typeof c.initiativeBonus === 'number' && Number.isFinite(c.initiativeBonus)
                 ? c.initiativeBonus
                 : 0;
+            const dexFromChar =
+              typeof c.dexterityModifier === 'number' && Number.isFinite(c.dexterityModifier)
+                ? c.dexterityModifier
+                : undefined;
 
             if (wantSaved && snap) {
+              const dexFromSnap =
+                snap.dexMod != null && Number.isFinite(snap.dexMod) ? snap.dexMod : dexFromChar;
               s.initiative = Initiative.addCombatant(s.initiative, {
                 label: c.name,
                 entityId: String(c.id),
@@ -406,6 +440,7 @@ export function attachSocketHandlers(
                 rollMode: snap.rollMode,
                 rollBreakdown: snap.rollBreakdown,
                 combatTags: snap.combatTags,
+                ...(dexFromSnap !== undefined ? { dexMod: dexFromSnap } : {}),
               });
             } else {
               const lenBefore = s.initiative.turnOrder.length;
@@ -413,6 +448,7 @@ export function attachSocketHandlers(
                 label: c.name,
                 entityId: String(c.id),
                 mod: modFromSheet,
+                ...(dexFromChar !== undefined ? { dexMod: dexFromChar } : {}),
                 avatarUrl: c.avatarUrl || undefined,
                 conditions: c.conditions.length ? [...c.conditions] : undefined,
               });
@@ -464,15 +500,31 @@ export function attachSocketHandlers(
       });
     });
 
-    socket.on('session:setTheme', (payload: { theme?: unknown }) => {
+    socket.on('session:setTheme', (payload: { theme?: unknown; themePalette?: unknown }) => {
       dmOnly(() => {
         const theme = payload?.theme;
         if (!isTableTheme(theme)) {
           socket.emit('error', { message: 'Invalid theme' });
           return;
         }
+        let pal: string[] | null = null;
+        if (payload.themePalette !== undefined) {
+          try {
+            pal = assertValidThemePalette(payload.themePalette);
+          } catch {
+            socket.emit('error', { message: 'Invalid themePalette' });
+            return;
+          }
+        }
         const sid = socket.data.sessionId as string;
-        sessions.update(sid, (s) => sessions.setTheme(s, theme));
+        sessions.update(sid, (s) => {
+          sessions.setTheme(s, theme);
+          if (payload.themePalette !== undefined) {
+            sessions.setThemePalette(s, pal);
+          } else {
+            sessions.setThemePalette(s, null);
+          }
+        });
         broadcast(sid);
       });
     });

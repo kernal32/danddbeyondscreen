@@ -33,7 +33,7 @@ export const WIDGET_REGISTRY = {
     label: 'Initiative tracker',
     Component: InitiativeWidget,
     configNotes:
-      'Portraits, initiative bonus, roll breakdown, conditions, turn highlight on DM / “last” tap on TV, Begin combat; TV: Next round (new rolls each round), DM: Next turn (live table only).',
+      'Portraits, initiative bonus, roll breakdown, conditions, turn highlight on DM / “last” tap on TV, New combat; TV: Next round (new rolls each round), DM: Next turn (live table only).',
   },
   timedEffects: {
     label: 'Timed effects',

@@ -4,10 +4,12 @@ import type { PublicSessionState } from '@ddb/shared-types';
 import { apiGet, apiPost } from '../api';
 import DisplayPinOverlay from '../components/DisplayPinOverlay';
 import InitiativeRemoteMoreSheet from '../components/InitiativeRemoteMoreSheet';
+import InitiativeRemoteSettingsSheet from '../components/InitiativeRemoteSettingsSheet';
 import InitiativeTrackerPanel from '../components/InitiativeTrackerPanel';
 import { useSessionSocket } from '../hooks/useSessionSocket';
 import { useSessionRuntimeStore } from '../stores/sessionRuntimeStore';
-import { applyRootTableTheme } from '../theme/tableTheme';
+import { applySessionVisualTheme } from '../theme/tableTheme';
+import { TableThemeProvider } from '../theme/TableThemeContext';
 import { readStoredDisplayUnlockRev, writeStoredDisplayUnlockRev } from '../util/displayPinUnlock';
 import { tryDisplayUnlockWithAccount } from '../util/displayAccountUnlock';
 
@@ -23,6 +25,8 @@ export default function InitiativeRemotePage() {
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [pinGateOpen, setPinGateOpen] = useState(true);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsCharacterId, setSettingsCharacterId] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     setMeta(null);
@@ -107,8 +111,8 @@ export default function InitiativeRemotePage() {
   const { emit } = useSessionSocket(sessionId, displayToken ?? null, { uiMode: 'display' });
 
   useEffect(() => {
-    applyRootTableTheme(live?.theme ?? 'minimal');
-  }, [live?.theme]);
+    applySessionVisualTheme(live?.theme ?? 'minimal', live?.themePalette ?? null);
+  }, [live?.theme, live?.themePalette]);
 
   const unlockDisplay = async (pin: string) => {
     if (!displayToken || !meta) return;
@@ -140,7 +144,7 @@ export default function InitiativeRemotePage() {
   }
 
   return (
-    <div className="theme-minimal min-h-dvh box-border flex flex-col bg-[var(--bg)] px-3 py-3 pb-16 relative">
+    <div className="min-h-dvh box-border flex flex-col bg-[var(--bg)] px-3 py-3 pb-16 relative">
       {pinGateOpen ? (
         <DisplayPinOverlay
           title="Phone controls"
@@ -149,6 +153,7 @@ export default function InitiativeRemotePage() {
         />
       ) : null}
       {live && !pinGateOpen ? (
+        <TableThemeProvider theme={live.theme}>
         <>
           <header className="mb-3 shrink-0">
             <h1 className="font-display text-lg font-bold text-[var(--accent)]">Initiative</h1>
@@ -167,6 +172,10 @@ export default function InitiativeRemotePage() {
               large
               emit={emit}
               allowCombatCueControls
+              onOpenConditionsForCharacter={(characterId) => {
+                setSettingsCharacterId(characterId);
+                setSettingsOpen(true);
+              }}
             />
           </div>
 
@@ -195,7 +204,18 @@ export default function InitiativeRemotePage() {
             live={live}
             emit={emit}
           />
+          <InitiativeRemoteSettingsSheet
+            open={settingsOpen}
+            onClose={() => {
+              setSettingsOpen(false);
+              setSettingsCharacterId(null);
+            }}
+            live={live}
+            emit={emit}
+            selectedCharacterId={settingsCharacterId}
+          />
         </>
+        </TableThemeProvider>
       ) : null}
     </div>
   );

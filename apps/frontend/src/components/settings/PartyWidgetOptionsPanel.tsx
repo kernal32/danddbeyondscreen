@@ -17,7 +17,7 @@ const SECTION_LABELS: Record<PlayerCardSectionId, string> = {
   savingThrows: 'Saving throws',
   senses: 'Passives & special senses',
   classSummary: 'Class / spell DC / attack',
-  spellSlots: 'Spell slots',
+  spellSlots: 'Spell slots & class resources',
   conditions: 'Conditions',
 };
 
@@ -37,10 +37,19 @@ const GROUPS: { title: string; rows: BoolRow[] }[] = [
     title: 'Combat row',
     rows: [
       { key: 'showHitPoints', label: 'Hit points (numbers)' },
-      { key: 'showHitPointsBar', label: 'Hit point bar' },
       { key: 'showArmorClass', label: 'Armor class' },
       { key: 'showSpellSaveDC', label: 'Spell save DC (when known)' },
       { key: 'showInitiative', label: 'Initiative (primary row)' },
+    ],
+  },
+  {
+    title: 'Bars',
+    rows: [
+      { key: 'showHitPointsBar', label: 'Hit point bar' },
+      { key: 'showSpellSlotBars', label: 'Spell slot bars' },
+      { key: 'showSpellSlotPips', label: 'Spell slots as pips' },
+      { key: 'showClassResourceBars', label: 'Class resource bars' },
+      { key: 'showClassResourcePips', label: 'Class resources as pips' },
     ],
   },
   {
@@ -63,7 +72,7 @@ const GROUPS: { title: string; rows: BoolRow[] }[] = [
   {
     title: 'Other',
     rows: [
-      { key: 'showSpellSlots', label: 'Spell slots (from D&D Beyond)' },
+      { key: 'showSpellSlots', label: 'Spell slots & class resources (D&D Beyond)' },
       { key: 'showConditions', label: 'Conditions' },
     ],
   },

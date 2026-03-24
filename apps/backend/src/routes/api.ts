@@ -6,7 +6,12 @@ import type { SessionService } from '../services/session.service.js';
 import type { DndBeyondService } from '../services/dndbeyond.service.js';
 import { effectiveDdbCookie } from '../services/ddb-session-cookie.js';
 import type { PartyCardDisplayOptions, PartySnapshot, TableLayout, TableTheme } from '@ddb/shared-types';
-import { isInitiativeCombatTag, isTableTheme, parsePartyCardDisplayPayload } from '@ddb/shared-types';
+import {
+  assertValidThemePalette,
+  isInitiativeCombatTag,
+  isTableTheme,
+  parsePartyCardDisplayPayload,
+} from '@ddb/shared-types';
 import * as Initiative from '../services/initiative.service.js';
 import { randomUUID } from 'node:crypto';
 import { parseTableLayoutPayload } from '../util/table-layout.js';
@@ -61,20 +66,37 @@ export function registerApiRoutes(
   app.get('/api/health', async () => ({ ok: true }));
   app.get('/api/auth/enabled', async () => ({ enabled: authEnabled }));
 
-  app.post('/api/sessions', async (req) => {
-    const s = sessions.create();
+  app.post('/api/sessions', async (req, reply) => {
     const authHdr = req.headers.authorization;
     const hdr = Array.isArray(authHdr) ? authHdr[0] : authHdr;
-    if (authSecret && hdr) {
+
+    const s = sessions.create();
+
+    if (authEnabled) {
+      if (!authSecret) {
+        return reply.code(503).send({ error: 'Server auth misconfiguration' });
+      }
+      const ujwt = parseBearer(hdr);
+      if (!ujwt) {
+        return reply.code(401).send({ error: 'Sign in required to create a table session' });
+      }
+      const uid = await verifyUserJwt(ujwt, authSecret);
+      if (!uid) {
+        return reply.code(401).send({ error: 'Invalid or expired sign-in' });
+      }
+      s.ownerUserId = uid;
+    } else if (authSecret && hdr) {
       const ujwt = parseBearer(hdr);
       if (ujwt) {
         const uid = await verifyUserJwt(ujwt, authSecret);
         if (uid) s.ownerUserId = uid;
       }
     }
+
     if (applyUserPrefsToNewSession) {
       await applyUserPrefsToNewSession(s, hdr);
     }
+
     return {
       sessionId: s.sessionId,
       displayToken: s.displayToken,
@@ -91,6 +113,7 @@ export function registerApiRoutes(
     return {
       sessionId: s.sessionId,
       theme: s.theme,
+      themePalette: s.themePalette?.length ? s.themePalette : null,
       partyCardDisplay: s.partyCardDisplay,
       tableLayout: s.tableLayout,
       seedCharacterId: s.seedCharacterId,
@@ -105,6 +128,7 @@ export function registerApiRoutes(
     Params: { sessionId: string };
     Body: Partial<{
       theme: TableTheme;
+      themePalette: string[] | null;
       partyCardDisplay: PartyCardDisplayOptions;
       tableLayout: TableLayout;
       seedCharacterId: number | null;
@@ -133,6 +157,17 @@ export function registerApiRoutes(
           return reply.code(400).send({ error: 'Invalid theme' });
         }
         sessions.setTheme(s, req.body.theme);
+      }
+      if (req.body.themePalette !== undefined) {
+        try {
+          const pal = assertValidThemePalette(req.body.themePalette);
+          sessions.setThemePalette(s, pal);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : 'Invalid themePalette';
+          return reply.code(400).send({ error: msg });
+        }
+      } else if (req.body.theme !== undefined) {
+        sessions.setThemePalette(s, null);
       }
       if (req.body.partyCardDisplay !== undefined) {
         const parsed = parsePartyCardDisplayPayload(req.body.partyCardDisplay);
@@ -317,6 +352,7 @@ export function registerApiRoutes(
       conditions?: string[];
       absent?: boolean;
       hiddenFromTable?: boolean;
+      inspired?: boolean;
     };
   }>('/api/sessions/:sessionId/party/manual', async (req, reply) => {
     const token = parseBearer(req.headers.authorization);
@@ -324,7 +360,7 @@ export function registerApiRoutes(
     if (!s || !token || !sessions.isDmToken(s, token)) {
       return reply.code(401).send({ error: 'Unauthorized' });
     }
-    const { characterId, currentHp, tempHp, conditions, absent, hiddenFromTable } = req.body;
+    const { characterId, currentHp, tempHp, conditions, absent, hiddenFromTable, inspired } = req.body;
     if (!characterId) return reply.code(400).send({ error: 'characterId required' });
     sessions.setManualOverride(s, characterId, {
       currentHp,
@@ -332,6 +368,7 @@ export function registerApiRoutes(
       conditions,
       absent,
       hiddenFromTable,
+      ...(inspired !== undefined ? { inspired } : {}),
     });
     if (absent === true || hiddenFromTable === true) {
       s.initiative = Initiative.removeByEntityId(s.initiative, characterId);

@@ -1,31 +1,59 @@
-# Chrome extension: D&D Beyond → DM Screen cookie sync
+# Chrome extension: D&D Beyond campaign poller (API key upload)
 
-**Deprecated.** The DM Screen no longer accepts per-session browser cookies from this extension. Use **Tampermonkey + account API key** (`userscripts/`) to push party JSON, or set **`DDB_COOKIE`** only on the server for `Refresh party`.
+This extension polls a D&D Beyond campaign directly from Chrome background context and uploads the party snapshot to your account stash using your website-generated API key.
 
----
+## What it does
 
-Legacy description: automates sending your **logged-in** D&D Beyond cookies to the local backend so you do not have to copy the `Cookie` header from DevTools.
+- Reads your logged-in D&D Beyond cookies from Chrome.
+- Resolves character IDs from the configured campaign.
+- Fetches each character JSON payload.
+- Uploads to your backend via `POST /api/ingest/party` with:
+  - `Authorization: Bearer dnd_...`
+  - body `{ format: "ddb_characters", replaceParty: true, characters: [...] }`
+
+This runs without keeping a DDB tab open.
 
 ## Install (developer / unpacked)
 
 1. Open Chrome → **Extensions** → enable **Developer mode**.
-2. **Load unpacked** → select this folder (`extensions/dndbeyond-cookie-sync`).
-3. Pin the extension if you like.
+2. Click **Load unpacked** and select `extensions/dndbeyond-cookie-sync`.
+3. Pin the extension.
 
-## Use
+## Setup
 
-1. Start the DM Screen **backend** (default `http://127.0.0.1:3001`) and create a session in the web UI.
-2. Copy **Session ID** and **DM token** from the create-session response, **Settings** (`/dm/settings`), or the DM console (store them in the extension popup).
-3. Log in to [dndbeyond.com](https://www.dndbeyond.com) in **Chrome** (same profile as the extension).
-4. Open the extension popup → **Save settings** → **Send cookies to DM Screen**.
-5. In the DM console, set your seed character ID and click **Refresh party** (cookie is configured in **Settings** if you did not use this extension).
+1. Start backend (default `http://127.0.0.1:3001`).
+2. In your app account page, generate an API key (`dnd_...`).
+3. Sign in to [dndbeyond.com](https://www.dndbeyond.com) in the same Chrome profile.
+4. Open extension popup and fill:
+   - Backend is fixed to `https://dnd.saltbushlabs.com`
+   - Campaign ID or campaign URL
+   - API key
+   - Poll interval (ms)
+5. Enable polling and click **Save settings**.
+6. Optional: click **Refresh now** to force an immediate cycle.
 
-## Security
+## DM session usage
 
-- The extension only allows posting to `http://127.0.0.1` or `http://localhost` (not arbitrary URLs).
-- Your **DM token** is stored in `chrome.storage.local` on your machine.
-- Session cookies are as sensitive as your D&D Beyond login; do not use on shared PCs.
+Uploads go to your account stash, not directly into a live table.  
+In DM console, use your existing **Load upload** / auto-load upload workflow to bring the latest stash into the active table.
 
-## Firefox
+## Test checklist
 
-This build targets Chromium MV3. A Firefox port would use the same API shape with `browser.cookies` and `manifest.json` adjustments.
+1. Save settings with valid API key and campaign URL.
+2. Click **Refresh now** and verify success status.
+3. Confirm backend receives `/api/ingest/party` with `format: ddb_characters`.
+4. Turn polling on, close popup, wait one interval, confirm another upload occurs.
+5. Disable polling and verify uploads stop.
+6. Use an invalid API key and verify 401 appears in popup status.
+7. Log out from DDB and verify error reports missing/invalid auth cookies.
+
+## Security notes
+
+- Backend is fixed to `https://dnd.saltbushlabs.com`.
+- API key is stored in `chrome.storage.local` on your machine.
+- DDB cookies are read at poll time and are not persisted in extension storage.
+- Treat API keys and cookies as secrets.
+
+## Chrome Web Store
+
+For a complete submission checklist and required policy/listing artifacts, see `CHROME_WEB_STORE_SUBMISSION.md` in this folder.

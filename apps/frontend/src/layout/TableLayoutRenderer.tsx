@@ -1,8 +1,10 @@
-import type { PublicSessionState, WidgetInstance } from '@ddb/shared-types';
+import type { PublicSessionState } from '@ddb/shared-types';
 import { createDefaultTableLayout } from '@ddb/shared-types';
-import { widgetThemeSurfaceClass } from '../theme/tableTheme';
+import { resolveWidgetTableTheme, widgetThemeSurfaceClassFromSession } from '../theme/tableTheme';
+import { TableThemeProvider } from '../theme/TableThemeContext';
 import { renderTableWidget } from '../widgets/renderTableWidget';
 import { sortWidgets } from '../widgets/sortWidgets';
+import { tableLayoutRowCount } from './tableLayoutGrid';
 
 export type TableLayoutRendererProps = {
   state: PublicSessionState;
@@ -14,12 +16,6 @@ export type TableLayoutRendererProps = {
   fillViewport?: boolean;
   emit?: (event: string, payload?: unknown) => void;
 };
-
-function tableLayoutRowCount(widgets: WidgetInstance[]): number {
-  let max = 0;
-  for (const w of widgets) max = Math.max(max, w.y + w.h);
-  return Math.max(1, max);
-}
 
 function LayoutGridOverlay() {
   return (
@@ -67,7 +63,8 @@ export default function TableLayoutRenderer({
             const body = renderTableWidget(w, state, large, emit, { fillCell: fillViewport });
             if (body == null) return null;
 
-            const surfaceTheme = widgetThemeSurfaceClass(state.theme, w.themeOverride);
+            const surfaceTheme = widgetThemeSurfaceClassFromSession(state.theme, w.themeOverride, state.themePalette);
+            const widgetTheme = resolveWidgetTableTheme(state.theme, w.themeOverride);
             return (
               <div
                 key={w.id}
@@ -84,11 +81,13 @@ export default function TableLayoutRenderer({
                     {w.id} · {w.type}
                   </span>
                 )}
-                {fillViewport ? (
-                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-1.5">{body}</div>
-                ) : (
-                  body
-                )}
+                <TableThemeProvider theme={widgetTheme}>
+                  {fillViewport ? (
+                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-1.5">{body}</div>
+                  ) : (
+                    body
+                  )}
+                </TableThemeProvider>
               </div>
             );
           })}

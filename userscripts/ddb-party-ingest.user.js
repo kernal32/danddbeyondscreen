@@ -21,6 +21,7 @@
 // @grant        unsafeWindow
 // ==/UserScript==
 
+
 (function () {
   'use strict';
 
@@ -44,7 +45,7 @@
   /** Origin of the DM Screen app (same as in the browser address bar), no trailing slash. */
   const BACKEND_URL = 'https://dnd.saltbushlabs.com';
   /** Account API key from DM Screen → Account → Generate API key (starts with dnd_). */
-  const DND_API_KEY = 'PASTE_DND_API_KEY_HERE';
+  const DND_API_KEY = 'CHANGEME';
 
   /** Max characters of response body shown in the panel (avoid huge DOM). */
   const MAX_BODY_PREVIEW = 2400;
@@ -366,7 +367,7 @@
           backendUrl: BACKEND_URL,
           apiKeyLooksConfigured: !!(
             DND_API_KEY &&
-            DND_API_KEY !== 'PASTE_DND_API_KEY_HERE' &&
+            DND_API_KEY !== 'CHANGEME' &&
             DND_API_KEY.startsWith('dnd_')
           ),
           debugVerbose: isDebugEnabled(),
@@ -975,7 +976,7 @@
 
     const keyOk =
       DND_API_KEY &&
-      DND_API_KEY !== 'PASTE_DND_API_KEY_HERE' &&
+      DND_API_KEY !== 'CHANGEME' &&
       DND_API_KEY.startsWith('dnd_');
     if (!keyOk) {
       log('err', 'Set DND_API_KEY in the script (full dnd_… key from Account → Generate).');

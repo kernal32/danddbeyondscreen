@@ -1,13 +1,22 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PublicSessionState, TableLayout, WidgetInstance, WidgetType } from '@ddb/shared-types';
+import {
+  getInitiativeDensitySelectValue,
+  getPartyWidgetView,
+  type InitiativeWidgetDensityMode,
+} from '@ddb/shared-types';
 import { renderTableWidget } from '../widgets/renderTableWidget';
 import { sortWidgets } from '../widgets/sortWidgets';
 import { WIDGET_REGISTRY } from '../widgets/widgetRegistry';
-import { widgetThemeSurfaceClass } from '../theme/tableTheme';
+import { resolveWidgetTableTheme, widgetThemeSurfaceClassFromSession } from '../theme/tableTheme';
+import { TableThemeProvider } from '../theme/TableThemeContext';
 import { normalizeTableLayout, validateTableLayoutForServer } from './tableLayoutValidate';
-
-const GAP_PX = 16;
-const ROW_UNIT_PX = 56;
+import {
+  TABLE_LAYOUT_FILL_GAP_PX,
+  tableLayoutColStride,
+  tableLayoutRowCount,
+  tableLayoutRowStride,
+} from './tableLayoutGrid';
 
 const PALETTE_TYPES = (Object.keys(WIDGET_REGISTRY) as WidgetType[]).sort((a, b) =>
   WIDGET_REGISTRY[a].label.localeCompare(WIDGET_REGISTRY[b].label),
@@ -43,7 +52,7 @@ export default function TableLayoutEditor({
   const syncSig = useMemo(
     () =>
       JSON.stringify(
-        state.tableLayout.widgets.map((x) => [x.id, x.type, x.x, x.y, x.w, x.h]),
+        state.tableLayout.widgets.map((x) => [x.id, x.type, x.x, x.y, x.w, x.h, x.config ?? null]),
       ),
     [state.tableLayout.widgets],
   );
@@ -59,15 +68,17 @@ export default function TableLayoutEditor({
 
   const renderState = useMemo(() => ({ ...state, tableLayout: draft }), [state, draft]);
   const widgets = useMemo(() => sortWidgets(draft.widgets), [draft.widgets]);
+  const rowCount = useMemo(() => tableLayoutRowCount(draft.widgets), [draft.widgets]);
 
   const applyPointerResult = useCallback((e: PointerEvent, s: PointerSession) => {
     if (!gridRef.current) return;
     const rect = gridRef.current.getBoundingClientRect();
-    const innerW = Math.max(0, rect.width - 11 * GAP_PX);
-    const colStride = innerW / 12 + GAP_PX;
-    const rowStride = ROW_UNIT_PX + GAP_PX;
+    const gapPx = TABLE_LAYOUT_FILL_GAP_PX;
+    const colStride = tableLayoutColStride(rect.width, gapPx);
 
     setDraft((prev) => {
+      const rc = tableLayoutRowCount(prev.widgets);
+      const rowStride = tableLayoutRowStride(rect.height, rc, gapPx);
       const next = { ...prev, widgets: prev.widgets.map((w) => ({ ...w })) };
       const ix = next.widgets.findIndex((w) => w.id === s.orig.id);
       if (ix < 0) return prev;
@@ -210,76 +221,171 @@ export default function TableLayoutEditor({
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-dashed border-violet-500/40 p-3">
-        <div className="min-w-[720px]">
-          <div
-            ref={gridRef}
-            className="table-layout-grid relative"
-            style={{ gridAutoRows: `minmax(${ROW_UNIT_PX}px, auto)` }}
-          >
-            {widgets.map((w) => {
-              const previewLarge = w.type === 'initiative' || w.type === 'party';
-              const body = renderTableWidget(w, renderState, previewLarge, undefined);
-              const surface = widgetThemeSurfaceClass(renderState.theme, w.themeOverride);
-              return (
-                <div
-                  key={w.id}
-                  className={`relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border-2 border-violet-500/50 shadow-md ${surface}`}
-                  style={{
-                    gridColumn: `${w.x + 1} / span ${w.w}`,
-                    gridRow: `${w.y + 1} / span ${w.h}`,
-                  }}
-                >
-                  <div className="flex shrink-0 items-center gap-1 border-b border-white/10 bg-black/40 px-1 py-0.5">
+      <p className="text-[10px] text-[var(--muted)]">
+        Preview uses a <strong className="text-[var(--text)]">16:9</strong> frame (1080p proportions). Widgets use the same row splits and{' '}
+        <code className="text-[var(--text)]">fill</code> behavior as the TV display.
+      </p>
+
+      <div className="table-layout-editor-canvas mx-auto w-full max-w-[min(100%,1920px)] min-w-0">
+        <div className="aspect-video w-full min-h-0 overflow-hidden rounded-lg border border-dashed border-violet-500/40 bg-black/30">
+          <div className="flex h-full min-h-0 flex-col p-2">
+            <div
+              ref={gridRef}
+              className="table-layout-grid table-layout-grid--fill relative z-[1] min-h-0 flex-1"
+              style={{ gridTemplateRows: `repeat(${rowCount}, minmax(0, 1fr))` }}
+            >
+              {widgets.map((w) => {
+                const previewLarge = w.type === 'initiative' || w.type === 'party';
+                const body = renderTableWidget(w, renderState, previewLarge, undefined, { fillCell: true });
+                const surface = widgetThemeSurfaceClassFromSession(
+                  renderState.theme,
+                  w.themeOverride,
+                  renderState.themePalette,
+                );
+                const widgetTheme = resolveWidgetTableTheme(renderState.theme, w.themeOverride);
+
+                const patchConfig = (patch: Record<string, unknown>) => {
+                  setDraft((d) => ({
+                    ...d,
+                    widgets: d.widgets.map((x) => {
+                      if (x.id !== w.id) return x;
+                      const prev = x.config && typeof x.config === 'object' ? { ...(x.config as object) } : {};
+                      return { ...x, config: { ...prev, ...patch } };
+                    }),
+                  }));
+                  setDirty(true);
+                  setError(null);
+                };
+
+                const setPartyView = (view: 'full' | 'compact') => {
+                  if (view === 'full') {
+                    setDraft((d) => ({
+                      ...d,
+                      widgets: d.widgets.map((x) => {
+                        if (x.id !== w.id) return x;
+                        const cfg = x.config && typeof x.config === 'object' ? { ...(x.config as object) } : {};
+                        delete (cfg as { view?: string }).view;
+                        return Object.keys(cfg).length ? { ...x, config: cfg } : { ...x, config: undefined };
+                      }),
+                    }));
+                  } else {
+                    patchConfig({ view: 'compact' });
+                  }
+                  setDirty(true);
+                  setError(null);
+                };
+
+                const setInitiativeDensity = (mode: InitiativeWidgetDensityMode) => {
+                  if (mode === 'auto') {
+                    setDraft((d) => ({
+                      ...d,
+                      widgets: d.widgets.map((x) => {
+                        if (x.id !== w.id) return x;
+                        const cfg = x.config && typeof x.config === 'object' ? { ...(x.config as object) } : {};
+                        delete (cfg as { density?: string }).density;
+                        return Object.keys(cfg).length ? { ...x, config: cfg } : { ...x, config: undefined };
+                      }),
+                    }));
+                  } else {
+                    patchConfig({ density: mode });
+                  }
+                  setDirty(true);
+                  setError(null);
+                };
+
+                return (
+                  <div
+                    key={w.id}
+                    className={`relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border-2 border-violet-500/50 shadow-md ${surface}`}
+                    style={{
+                      gridColumn: `${w.x + 1} / span ${w.w}`,
+                      gridRow: `${w.y + 1} / span ${w.h}`,
+                    }}
+                  >
+                    <div className="flex shrink-0 flex-col gap-0.5 border-b border-white/10 bg-black/40 px-1 py-0.5">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          aria-label={`Move ${w.type} widget`}
+                          className="cursor-grab touch-none rounded px-1.5 py-1 text-[var(--muted)] hover:bg-white/10 active:cursor-grabbing focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+                          onPointerDown={(e) => {
+                            e.preventDefault();
+                            sessionRef.current = {
+                              kind: 'move',
+                              startX: e.clientX,
+                              startY: e.clientY,
+                              orig: { ...w },
+                            };
+                          }}
+                        >
+                          ⋮⋮
+                        </button>
+                        <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-[var(--muted)]">
+                          {w.id} · {w.type}
+                        </span>
+                        <button
+                          type="button"
+                          className="rounded px-1.5 py-0.5 text-xs text-amber-300 hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                          onClick={() => removeWidget(w.id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      {w.type === 'party' ? (
+                        <label className="flex items-center gap-1 text-[10px] text-[var(--muted)]">
+                          <span className="shrink-0">Party</span>
+                          <select
+                            className="min-w-0 flex-1 rounded border border-white/20 bg-black/50 px-1 py-0.5 text-[var(--text)]"
+                            value={getPartyWidgetView(w)}
+                            onChange={(e) => setPartyView(e.target.value === 'compact' ? 'compact' : 'full')}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <option value="full">Full cards (3 col)</option>
+                            <option value="compact">Compact strip</option>
+                          </select>
+                        </label>
+                      ) : null}
+                      {w.type === 'initiative' ? (
+                        <label className="flex items-center gap-1 text-[10px] text-[var(--muted)]">
+                          <span className="shrink-0">Init</span>
+                          <select
+                            className="min-w-0 flex-1 rounded border border-white/20 bg-black/50 px-1 py-0.5 text-[var(--text)]"
+                            value={getInitiativeDensitySelectValue(w)}
+                            onChange={(e) => setInitiativeDensity(e.target.value as InitiativeWidgetDensityMode)}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <option value="auto">Auto (compact if ≤3 cols)</option>
+                            <option value="normal">Comfortable</option>
+                            <option value="compact">Compact rows</option>
+                          </select>
+                        </label>
+                      ) : null}
+                    </div>
+                    <TableThemeProvider theme={widgetTheme}>
+                      <div className="min-h-0 flex-1 overflow-auto p-1 [&_*]:pointer-events-none">
+                        {body ?? (
+                          <p className="p-2 text-sm text-[var(--muted)]">{w.type === 'spacer' ? 'Spacer' : '—'}</p>
+                        )}
+                      </div>
+                    </TableThemeProvider>
                     <button
                       type="button"
-                      aria-label={`Move ${w.type} widget`}
-                      className="cursor-grab touch-none rounded px-1.5 py-1 text-[var(--muted)] hover:bg-white/10 active:cursor-grabbing focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+                      aria-label={`Resize ${w.type} widget`}
+                      className="absolute bottom-0.5 right-0.5 z-10 h-4 w-4 cursor-se-resize rounded-sm border border-violet-400/80 bg-violet-900/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
                       onPointerDown={(e) => {
                         e.preventDefault();
                         sessionRef.current = {
-                          kind: 'move',
+                          kind: 'resize',
                           startX: e.clientX,
                           startY: e.clientY,
                           orig: { ...w },
                         };
                       }}
-                    >
-                      ⋮⋮
-                    </button>
-                    <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-[var(--muted)]">
-                      {w.id} · {w.type}
-                    </span>
-                    <button
-                      type="button"
-                      className="rounded px-1.5 py-0.5 text-xs text-amber-300 hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-                      onClick={() => removeWidget(w.id)}
-                    >
-                      Remove
-                    </button>
+                    />
                   </div>
-                  <div className="min-h-0 flex-1 overflow-auto p-1 [&_*]:pointer-events-none">
-                    {body ?? (
-                      <p className="p-2 text-sm text-[var(--muted)]">{w.type === 'spacer' ? 'Spacer' : '—'}</p>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    aria-label={`Resize ${w.type} widget`}
-                    className="absolute bottom-0.5 right-0.5 h-4 w-4 cursor-se-resize rounded-sm border border-violet-400/80 bg-violet-900/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
-                    onPointerDown={(e) => {
-                      e.preventDefault();
-                      sessionRef.current = {
-                        kind: 'resize',
-                        startX: e.clientX,
-                        startY: e.clientY,
-                        orig: { ...w },
-                      };
-                    }}
-                  />
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

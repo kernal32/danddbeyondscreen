@@ -1,4 +1,4 @@
-import type { SpellSlotSummary } from '@ddb/shared-types';
+import type { ClassResourceSummary, SpellSlotSummary } from '@ddb/shared-types';
 
 /** TV party widget: card typography/padding when fitting 3×3 or 3×4 character grids */
 export type TvPartyGridDensity = 'cozy' | 'compact' | 'dense';
@@ -29,5 +29,7 @@ export type PlayerCardData = {
   classSummaryLines?: string[];
   combat?: { spellSaveDC?: number; attackBonus?: number };
   spellSlots?: SpellSlotSummary[];
+  /** Ki, Rage, Bardic Inspiration, etc. (D&D Beyond `actions.*.limitedUse`) */
+  classResources?: ClassResourceSummary[];
   conditions?: string[];
 };

@@ -17,6 +17,10 @@ export const MOCK_MARTIAL: PlayerCardData = {
   senses: ['Darkvision 60 ft'],
   classSummaryLines: ['Fighter 8'],
   combat: { attackBonus: 9 },
+  classResources: [
+    { label: 'Superiority Dice', available: 5, used: 2 },
+    { label: 'Second Wind', available: 1, used: 0 },
+  ],
   conditions: ['Blessed'],
 };
 
@@ -68,6 +72,7 @@ export const MOCK_HALF_CASTER: PlayerCardData = {
     { level: 1, available: 4, used: 1 },
     { level: 2, available: 2, used: 2 },
   ],
+  classResources: [{ label: 'Lay on Hands', available: 30, used: 10 }],
 };
 
 export const MOCK_PLAYER_CARDS: PlayerCardData[] = [MOCK_MARTIAL, MOCK_CASTER, MOCK_HALF_CASTER];

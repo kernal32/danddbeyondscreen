@@ -15,6 +15,15 @@ function isSpellSlotSummary(x: unknown): boolean {
   return true;
 }
 
+function isClassResourceSummary(x: unknown): boolean {
+  if (!x || typeof x !== 'object') return false;
+  const o = x as Record<string, unknown>;
+  if (typeof o.label !== 'string' || !o.label.trim()) return false;
+  if (!isNonNegInt(o.available)) return false;
+  if (!isNonNegInt(o.used)) return false;
+  return true;
+}
+
 export function isNormalizedCharacter(x: unknown): x is NormalizedCharacter {
   if (!x || typeof x !== 'object') return false;
   const o = x as Record<string, unknown>;
@@ -36,8 +45,14 @@ export function isNormalizedCharacter(x: unknown): x is NormalizedCharacter {
   if (o.spellSlots !== undefined) {
     if (!Array.isArray(o.spellSlots) || !o.spellSlots.every(isSpellSlotSummary)) return false;
   }
+  if (o.classResources !== undefined) {
+    if (!Array.isArray(o.classResources) || !o.classResources.every(isClassResourceSummary)) return false;
+  }
   if (o.initiativeBonus !== undefined) {
     if (typeof o.initiativeBonus !== 'number' || !Number.isFinite(o.initiativeBonus)) return false;
+  }
+  if (o.dexterityModifier !== undefined) {
+    if (typeof o.dexterityModifier !== 'number' || !Number.isFinite(o.dexterityModifier)) return false;
   }
   if (o.spellSaveDC !== undefined) {
     if (typeof o.spellSaveDC !== 'number' || !Number.isFinite(o.spellSaveDC)) return false;

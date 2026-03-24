@@ -56,6 +56,7 @@ export function addCombatant(
     conditions?: string[];
     rollBreakdown?: InitiativeRollBreakdown;
     combatTags?: InitiativeCombatTag[];
+    dexMod?: number;
   },
 ): InitiativeState {
   const id = newId();
@@ -86,6 +87,7 @@ export function addCombatant(
         }
       : {}),
     ...(input.combatTags?.length ? { combatTags: [...input.combatTags] } : {}),
+    ...(input.dexMod != null && Number.isFinite(input.dexMod) ? { dexMod: input.dexMod } : {}),
   };
   return {
     ...state,
@@ -186,7 +188,10 @@ export function rollInitiative(
   return { ...state, entries: nextEntries, markedEntryId: state.markedEntryId ?? null };
 }
 
-/** Sort by initiative (desc). Ties: higher initiative bonus (`mod`) first. Locked combatants stay at their index. */
+/**
+ * Sort by initiative total (desc). Ties: higher **Dexterity modifier** (`dexMod`) when both rows have it;
+ * else higher initiative bonus (`mod`); then stable id. Locked combatants stay at their index.
+ */
 export function sortInitiative(state: InitiativeState): InitiativeState {
   const order = [...state.turnOrder];
   if (!order.length) return state;
@@ -198,6 +203,11 @@ export function sortInitiative(state: InitiativeState): InitiativeState {
     const ta = ea?.initiativeTotal ?? 0;
     const tb = eb?.initiativeTotal ?? 0;
     if (tb !== ta) return tb - ta;
+    const dexA = ea?.dexMod;
+    const dexB = eb?.dexMod;
+    const hasDexA = dexA != null && Number.isFinite(dexA);
+    const hasDexB = dexB != null && Number.isFinite(dexB);
+    if (hasDexA && hasDexB && dexB !== dexA) return dexB - dexA;
     const ma = ea?.mod ?? 0;
     const mb = eb?.mod ?? 0;
     if (mb !== ma) return mb - ma;
@@ -334,10 +344,15 @@ export function startCombatFromParty(
       typeof c.initiativeBonus === 'number' && Number.isFinite(c.initiativeBonus)
         ? c.initiativeBonus
         : 0;
+    const dexMod =
+      typeof c.dexterityModifier === 'number' && Number.isFinite(c.dexterityModifier)
+        ? c.dexterityModifier
+        : undefined;
     next = addCombatant(next, {
       label: c.name,
       entityId: c.id,
       mod,
+      ...(dexMod !== undefined ? { dexMod } : {}),
       avatarUrl: c.avatarUrl || undefined,
       conditions: c.conditions.length ? [...c.conditions] : undefined,
     });

@@ -6,7 +6,7 @@ import { useSessionSocket } from '../hooks/useSessionSocket';
 import { useSessionRuntimeStore } from '../stores/sessionRuntimeStore';
 import TableLayoutView from '../components/TableLayoutView';
 import DisplayPinOverlay from '../components/DisplayPinOverlay';
-import { applyRootTableTheme } from '../theme/tableTheme';
+import { applySessionVisualTheme } from '../theme/tableTheme';
 import { readStoredDisplayUnlockRev, writeStoredDisplayUnlockRev } from '../util/displayPinUnlock';
 import { tryDisplayUnlockWithAccount } from '../util/displayAccountUnlock';
 
@@ -105,8 +105,8 @@ export default function TableScreen() {
   const { emit } = useSessionSocket(sessionId, displayToken ?? null, { uiMode: 'display' });
 
   useEffect(() => {
-    applyRootTableTheme(live?.theme ?? 'minimal');
-  }, [live?.theme]);
+    applySessionVisualTheme(live?.theme ?? 'minimal', live?.themePalette ?? null);
+  }, [live?.theme, live?.themePalette]);
 
   const unlockDisplay = async (pin: string) => {
     if (!displayToken || !meta) return;
@@ -132,7 +132,7 @@ export default function TableScreen() {
   }
 
   return (
-    <div className="theme-minimal h-dvh max-h-dvh box-border flex flex-col overflow-hidden px-2 pt-2 pb-2 relative">
+    <div className="h-dvh max-h-dvh box-border flex flex-col overflow-hidden px-2 pt-2 pb-2 relative">
       {pinGateOpen ? (
         <DisplayPinOverlay
           title="Table display"

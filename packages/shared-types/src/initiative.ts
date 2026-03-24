@@ -48,6 +48,8 @@ export interface InitiativeEntry {
   rollMode: RollMode;
   /** Initiative bonus (matches character.initiativeBonus when synced from party). */
   mod: number;
+  /** Dexterity modifier when known (party / DDB); used for tiebreak after equal initiative totals. */
+  dexMod?: number;
   locked: boolean;
   delayed: boolean;
   ready: boolean;

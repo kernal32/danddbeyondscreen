@@ -5,7 +5,7 @@
     <style>
       body {
         font-family: system-ui, sans-serif;
-        width: 320px;
+        width: 360px;
         padding: 12px;
         margin: 0;
       }
@@ -22,7 +22,7 @@
         padding: 6px;
       }
       button {
-        margin-top: 12px;
+        margin-top: 8px;
         width: 100%;
         padding: 8px;
         cursor: pointer;
@@ -32,26 +32,50 @@
         font-size: 12px;
         white-space: pre-wrap;
       }
+      #liveStatus {
+        margin-top: 8px;
+        font-size: 12px;
+        white-space: pre-wrap;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 8px;
+        background: #fafafa;
+      }
       .ok {
         color: #0a0;
       }
       .err {
         color: #c00;
       }
+      .row {
+        margin-top: 8px;
+      }
     </style>
   </head>
   <body>
     <p style="margin: 0 0 8px; font-size: 13px">
-      Log in on <strong>dndbeyond.com</strong> first. Then fill your DM session details (from the DM console after “New session”).
+      Sign in to <strong>dndbeyond.com</strong>. This extension polls your campaign in the background and uploads with your account API key.
     </p>
-    <label>Backend URL</label>
-    <input id="backend" type="text" placeholder="http://127.0.0.1:3001" />
-    <label>Session ID</label>
-    <input id="sessionId" type="text" autocomplete="off" />
-    <label>DM token</label>
-    <input id="dmToken" type="password" autocomplete="off" />
+    <label>Backend</label>
+    <div id="backendValue" style="margin-top: 4px; font-size: 12px; color: #111">https://dnd.saltbushlabs.com</div>
+    <label>Campaign ID or link</label>
+    <input
+      id="campaignInput"
+      type="text"
+      autocomplete="off"
+      placeholder="Paste DDB campaign URL or campaign ID"
+    />
+    <label>API key (from your website account)</label>
+    <input id="apiKey" type="password" autocomplete="off" placeholder="dnd_..." />
+    <label>Poll interval (ms)</label>
+    <input id="pollIntervalMs" type="number" min="60000" step="1000" />
+    <div class="row">
+      <label><input id="pollingEnabled" type="checkbox" /> Enable polling</label>
+    </div>
     <button id="save">Save settings</button>
-    <button id="sync">Send cookies to DM Screen</button>
+    <button id="refreshNow">Refresh now</button>
+    <button id="reloadStatus">Reload status</button>
+    <div id="liveStatus"></div>
     <div id="status"></div>
     <script src="popup.js"></script>
   </body>

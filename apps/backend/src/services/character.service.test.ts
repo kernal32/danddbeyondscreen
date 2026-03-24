@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { conditionToLabel, extractSpellSlots } from './character.service.js';
+import {
+  conditionToLabel,
+  extractClassResources,
+  extractSpellSlots,
+  normalizeCharacter,
+} from './character.service.js';
 import type { DdbCharacter } from './character-calculator.js';
 
 describe('conditionToLabel', () => {
@@ -115,5 +120,71 @@ describe('extractSpellSlots', () => {
       { level: 2, available: 3, used: 0 },
       { level: 3, available: 2, used: 0 },
     ]);
+  });
+});
+
+describe('extractClassResources', () => {
+  it('collects limitedUse from actions.class / race / feat', () => {
+    const raw = {
+      actions: {
+        class: [
+          { name: 'Ki', limitedUse: { numberUsed: 2, maxUses: 5 } },
+          { name: 'Rage', limitedUse: { numberUsed: 0, maxUses: 4 } },
+        ],
+        race: [{ name: 'Breath Weapon', limitedUse: { numberUsed: 1, maxUses: 1 } }],
+        feat: [],
+      },
+    } as unknown as DdbCharacter;
+    expect(extractClassResources(raw)).toEqual([
+      { label: 'Ki', available: 5, used: 2 },
+      { label: 'Rage', available: 4, used: 0 },
+      { label: 'Breath Weapon', available: 1, used: 1 },
+    ]);
+  });
+
+  it('skips usesSpellSlot actions and dedupes by name', () => {
+    const raw = {
+      actions: {
+        class: [
+          { name: 'Ki', limitedUse: { numberUsed: 0, maxUses: 4 } },
+          { name: 'Fireball', usesSpellSlot: true, limitedUse: { numberUsed: 0, maxUses: 1 } },
+          { name: 'ki', limitedUse: { numberUsed: 1, maxUses: 4 } },
+        ],
+      },
+    } as unknown as DdbCharacter;
+    expect(extractClassResources(raw)).toEqual([{ label: 'Ki', available: 4, used: 0 }]);
+  });
+
+  it('reads name from definition and clamps used to available', () => {
+    const raw = {
+      actions: {
+        class: [{ definition: { name: 'Bardic Inspiration' }, limitedUse: { numberUsed: 99, maxUses: 5 } }],
+      },
+    } as unknown as DdbCharacter;
+    expect(extractClassResources(raw)).toEqual([{ label: 'Bardic Inspiration', available: 5, used: 5 }]);
+  });
+});
+
+describe('normalizeCharacter', () => {
+  const base = {
+    id: 1,
+    name: 'Test',
+    removedHitPoints: 0,
+    temporaryHitPoints: 0,
+  } as unknown as DdbCharacter;
+
+  it('sets inspired when DDB inspiration is true', () => {
+    const n = normalizeCharacter({ ...base, inspiration: true } as DdbCharacter);
+    expect(n.inspired).toBe(true);
+  });
+
+  it('sets inspired when DDB inspiration is 1', () => {
+    const n = normalizeCharacter({ ...base, inspiration: 1 } as DdbCharacter);
+    expect(n.inspired).toBe(true);
+  });
+
+  it('omits inspired when not present or false', () => {
+    expect(normalizeCharacter(base).inspired).toBeUndefined();
+    expect(normalizeCharacter({ ...base, inspiration: false } as DdbCharacter).inspired).toBeUndefined();
   });
 });

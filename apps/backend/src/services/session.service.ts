@@ -38,7 +38,7 @@ export function mergePartyOverrides(
   party: PartySnapshot,
   overrides: Record<
     string,
-    Partial<Pick<NormalizedCharacter, 'currentHp' | 'tempHp' | 'conditions' | 'absent'>>
+    Partial<Pick<NormalizedCharacter, 'currentHp' | 'tempHp' | 'conditions' | 'absent' | 'inspired'>>
   >,
 ): PartySnapshot {
   return {
@@ -52,6 +52,7 @@ export function mergePartyOverrides(
         ...(o.tempHp !== undefined ? { tempHp: o.tempHp } : {}),
         ...(o.conditions !== undefined ? { conditions: o.conditions } : {}),
         ...(o.absent !== undefined ? { absent: o.absent } : {}),
+        ...(o.inspired !== undefined ? { inspired: o.inspired } : {}),
       };
     }),
   };
@@ -187,6 +188,7 @@ export class SessionService {
       sessionId: session.sessionId,
       displayPinRevision: session.displayPinRevision,
       theme: session.theme,
+      themePalette: session.themePalette?.length ? session.themePalette : null,
       partyCardDisplay: session.partyCardDisplay ?? { ...DEFAULT_PARTY_CARD_DISPLAY_OPTIONS },
       tableLayout: session.tableLayout ?? createDefaultTableLayout(),
       party,
@@ -225,6 +227,16 @@ export class SessionService {
     this.markDirty(session);
   }
 
+  /** Replace or clear palette-derived UI tokens (`null` or `[]` = built-in CSS only). */
+  setThemePalette(session: SessionRecord, palette: string[] | null): void {
+    if (palette == null || palette.length === 0) {
+      delete session.themePalette;
+    } else {
+      session.themePalette = palette;
+    }
+    this.markDirty(session);
+  }
+
   setPartyCardDisplay(session: SessionRecord, options: SessionRecord['partyCardDisplay']): void {
     session.partyCardDisplay = options;
     this.markDirty(session);
@@ -243,7 +255,7 @@ export class SessionService {
   setManualOverride(
     session: SessionRecord,
     characterId: string,
-    patch: Partial<Pick<NormalizedCharacter, 'currentHp' | 'tempHp' | 'conditions' | 'absent'>> & {
+    patch: Partial<Pick<NormalizedCharacter, 'currentHp' | 'tempHp' | 'conditions' | 'absent' | 'inspired'>> & {
       hiddenFromTable?: boolean;
       hiddenInitiativeSnapshot?: HiddenInitiativeSnapshot | null;
     },

@@ -30,6 +30,8 @@ export interface HiddenInitiativeSnapshot {
   initiativeTotal: number;
   mod: number;
   rollMode: RollMode;
+  /** Preserved for tiebreak + display after unhide with saved roll. */
+  dexMod?: number;
   rollBreakdown?: InitiativeRollBreakdown;
   combatTags?: InitiativeCombatTag[];
 }
@@ -48,6 +50,10 @@ export interface PublicSessionState {
   /** Bumps when the DM changes the display / phone PIN; clients re-verify when this changes. */
   displayPinRevision: number;
   theme: TableTheme;
+  /**
+   * When non-null and non-empty, clients map these hex colours to CSS variables over the base `theme` class.
+   */
+  themePalette: string[] | null;
   /** What to show on each party character card (DM + display). */
   partyCardDisplay: PartyCardDisplayOptions;
   /** TV/table widget grid; included for display and DM. */
@@ -74,6 +80,8 @@ export interface SessionRecord {
   /** Incremented when `displayGatePin` changes so devices re-prompt. */
   displayPinRevision: number;
   theme: TableTheme;
+  /** See `PublicSessionState.themePalette`. */
+  themePalette?: string[] | null;
   partyCardDisplay: PartyCardDisplayOptions;
   tableLayout: TableLayout;
   seedCharacterId: number | null;
@@ -82,7 +90,7 @@ export interface SessionRecord {
   initiative: InitiativeState;
   manualOverrides: Record<
     string,
-    Partial<Pick<NormalizedCharacter, 'currentHp' | 'tempHp' | 'conditions' | 'absent'>> & {
+    Partial<Pick<NormalizedCharacter, 'currentHp' | 'tempHp' | 'conditions' | 'absent' | 'inspired'>> & {
       /** When true, omit from display party + initiative; excluded from begin-combat rolls. */
       hiddenFromTable?: boolean;
       /** Initiative row data saved when hiding (for restore on unhide). */

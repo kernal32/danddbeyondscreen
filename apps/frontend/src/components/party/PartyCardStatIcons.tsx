@@ -13,19 +13,20 @@ const SHIELD_OUTER_PATH_D =
  * Square viewBox so the shield scales like the 24×24 heart inside the same square `statIconFrame`
  * (112×105 letterboxing had made the glyph sit visually lower than the heart).
  */
-export const SHIELD_VIEWBOX = '0 0 112 112';
+export const SHIELD_VIEWBOX = '10.01431718061674 9.39498 88.10506607929516 97.72004';
 
-/** Stroke width in **path** units (before `scale(0.1)`); ~2px-ish line at typical icon sizes. */
-const SHIELD_STROKE_PATH_UNITS = 22;
+/** Stroke width in **path** units (before `scale(0.1)`); tuned for ~3-4px visual outline. */
+const SHIELD_STROKE_PATH_UNITS = 34;
 
-/** Effective stroke in shield SVG user space (112-wide viewBox) after `scale(0.1)`. */
-const SHIELD_STROKE_USER_UNITS = SHIELD_STROKE_PATH_UNITS * 0.1;
-
+const PRIMARY_ICON_BLACK_OUTLINE = 0.8;
 /**
- * Heart `strokeWidth` for 24×24 viewBox so line thickness matches the shield in the same pixel frame
- * (same ratio to viewBox width: `SHIELD_STROKE_USER_UNITS / 112 === HEART_STROKE_MATCH_SHIELD / 24`).
+ * Square-ish crop so heart occupies similar vertical space as the shield
+ * when both are rendered in the same square stat frame.
  */
-const HEART_STROKE_MATCH_SHIELD = (SHIELD_STROKE_USER_UNITS * 24) / 112;
+const HEART_VIEWBOX = '3.16 4.08 17.68 17.68';
+
+/** 24x24 top-stat icon outline thickness (heart / pentagram). */
+export const PRIMARY_STAT_ICON_STROKE = PRIMARY_ICON_BLACK_OUTLINE;
 
 const SHIELD_VERTICAL_NUDGE = (112 - 105) / 2;
 /** Path bounds after `scale(0.1,-0.1)` are slightly right-heavy in 112×112; shift left for optical center. */
@@ -37,8 +38,8 @@ export function ShieldHeaterOutline({ strokeWidth = SHIELD_STROKE_PATH_UNITS }: 
       <g transform={SHIELD_TRANSFORM}>
         <path
           d={SHIELD_OUTER_PATH_D}
-          fill="none"
-          stroke="currentColor"
+          fill="currentColor"
+          stroke="#000"
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -52,16 +53,18 @@ export function IconHeart({ className }: { className?: string }) {
   return (
     <svg
       className={className}
-      viewBox="0 0 24 24"
+      viewBox="1.31 2.76 21.37 18.7"
       fill="none"
-      stroke="currentColor"
-      strokeWidth={HEART_STROKE_MATCH_SHIELD}
+      stroke="#000"
+      strokeWidth={PRIMARY_ICON_BLACK_OUTLINE}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      preserveAspectRatio="xMidYMid meet"
       aria-hidden
     >
       <path
         d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        fill="currentColor"
       />
     </svg>
   );
@@ -71,6 +74,29 @@ export function IconShield({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox={SHIELD_VIEWBOX} fill="none" aria-hidden>
       <ShieldHeaterOutline />
+    </svg>
+  );
+}
+
+/**
+ * Pentagram for spell save DC — five-point star inside an enclosing circle that
+ * touches the outer tips.
+ */
+export function IconSpellSaveTriangle({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#000"
+      strokeWidth={PRIMARY_STAT_ICON_STROKE}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      preserveAspectRatio="xMidYMid meet"
+      aria-hidden
+    >
+      <circle cx="12" cy="12" r="8.8" />
+      <path d="M12 3.2L17.17 19.12L3.64 9.28H20.36L6.83 19.12L12 3.2z" fill="currentColor" />
     </svg>
   );
 }

@@ -1,10 +1,17 @@
-import type { CampaignRef, NormalizedCharacter, PartySnapshot, SpellSlotSummary } from '@ddb/shared-types';
+import type {
+  CampaignRef,
+  ClassResourceSummary,
+  NormalizedCharacter,
+  PartySnapshot,
+  SpellSlotSummary,
+} from '@ddb/shared-types';
 import {
   calculateAc,
   getInitiativeBonus,
   getMaxHp,
   getPassiveScore,
   getSpellSaveDc,
+  getStatMod,
   type DdbCharacter,
 } from './character-calculator.js';
 import { DdbError, type DndBeyondService } from './dndbeyond.service.js';
@@ -267,12 +274,77 @@ export function extractSpellSlots(raw: DdbCharacter): SpellSlotSummary[] {
   return out;
 }
 
+const LIMITED_USE_ACTION_BUCKETS = [
+  'class',
+  'race',
+  'feat',
+  'background',
+  'bonusAction',
+  'special',
+] as const;
+
+/**
+ * Collect `actions.*` entries with D&D Beyond `limitedUse` (Ki, Rage, Bardic Inspiration, etc.).
+ * Skips spell-slot-cast rows (`usesSpellSlot`) to avoid duplicating slot UI.
+ */
+export function extractClassResources(raw: DdbCharacter): ClassResourceSummary[] {
+  const r = raw as Record<string, unknown>;
+  const actions = r.actions;
+  if (!actions || typeof actions !== 'object' || Array.isArray(actions)) return [];
+
+  const byDedupeKey = new Map<string, ClassResourceSummary>();
+
+  for (const bucket of LIMITED_USE_ACTION_BUCKETS) {
+    const arr = (actions as Record<string, unknown>)[bucket];
+    if (!Array.isArray(arr)) continue;
+    for (const item of arr) {
+      if (!item || typeof item !== 'object') continue;
+      const o = item as Record<string, unknown>;
+      if (o.usesSpellSlot === true) continue;
+      const lu = o.limitedUse;
+      if (!lu || typeof lu !== 'object') continue;
+      const l = lu as Record<string, unknown>;
+      const maxUses = Math.floor(Number(l.maxUses));
+      if (!Number.isFinite(maxUses) || maxUses <= 0) continue;
+      const numberUsed = Math.max(0, Math.floor(Number(l.numberUsed) || 0));
+      const def = o.definition;
+      const defName =
+        def && typeof def === 'object' && typeof (def as Record<string, unknown>).name === 'string'
+          ? String((def as Record<string, unknown>).name).trim()
+          : '';
+      const name =
+        (typeof o.name === 'string' && o.name.trim()) || defName || 'Resource';
+      const dedupeKey = name.toLowerCase().replace(/\s+/g, ' ');
+      if (byDedupeKey.has(dedupeKey)) continue;
+      const available = maxUses;
+      byDedupeKey.set(dedupeKey, {
+        label: name,
+        available,
+        used: Math.min(numberUsed, available),
+      });
+    }
+  }
+
+  const PRIORITY = ['ki', 'rage', 'bardic inspiration', 'sorcery points', 'superiority dice'];
+  const rank = (label: string) => {
+    const low = label.toLowerCase();
+    const i = PRIORITY.findIndex((p) => low.includes(p));
+    return i === -1 ? PRIORITY.length : i;
+  };
+  return [...byDedupeKey.values()].sort((a, b) => {
+    const dr = rank(a.label) - rank(b.label);
+    if (dr !== 0) return dr;
+    return a.label.localeCompare(b.label);
+  });
+}
+
 export function normalizeCharacter(raw: DdbCharacter): NormalizedCharacter {
   const id = Number(raw.id);
   const maxHp = getMaxHp(raw);
   const removed = Number(raw.removedHitPoints) || 0;
   const tempHp = Number(raw.temporaryHitPoints) || 0;
   const spellSlots = extractSpellSlots(raw);
+  const classResources = extractClassResources(raw);
   const spellSaveDC = getSpellSaveDc(raw);
   return {
     id: String(id),
@@ -283,13 +355,16 @@ export function normalizeCharacter(raw: DdbCharacter): NormalizedCharacter {
     currentHp: Math.max(0, maxHp - removed),
     tempHp,
     initiativeBonus: getInitiativeBonus(raw),
+    dexterityModifier: getStatMod(raw, 'dex'),
     passivePerception: getPassiveScore(raw, 'perception'),
     passiveInvestigation: getPassiveScore(raw, 'investigation'),
     passiveInsight: getPassiveScore(raw, 'insight'),
     conditions: extractConditions(raw),
+    ...(raw.inspiration === true || raw.inspiration === 1 ? { inspired: true } : {}),
     source: 'ddb',
     ddbCharacterId: id,
     ...(spellSlots.length > 0 ? { spellSlots } : {}),
+    ...(classResources.length > 0 ? { classResources } : {}),
     ...(spellSaveDC != null ? { spellSaveDC } : {}),
   };
 }

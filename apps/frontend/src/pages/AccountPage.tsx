@@ -100,85 +100,99 @@ export default function AccountPage() {
   if (!token) return null;
 
   return (
-    <div className="min-h-screen p-4 md:p-6 max-w-2xl mx-auto space-y-8 theme-minimal">
+    <div className="min-h-screen p-4 md:p-6 max-w-2xl mx-auto space-y-8">
       <header className="flex flex-wrap justify-between gap-4 items-center">
         <div>
-          <Link to="/" className="text-sm text-sky-400 hover:underline">
+          <Link to="/" className="text-sm text-[var(--link)] hover:text-[var(--link-hover)] hover:underline">
             ← Home
           </Link>
-          <h1 className="text-2xl font-display font-bold text-sky-400 mt-2">Account</h1>
-          <p className="text-sm text-slate-400 mt-1">{email}</p>
+          <h1 className="text-2xl font-display font-bold text-[var(--accent)] mt-2">Account</h1>
+          <p className="text-sm text-[var(--muted)] mt-1">{email}</p>
         </div>
-        <button type="button" className="text-sm text-slate-400 hover:underline" onClick={logout}>
+        <button
+          type="button"
+          className="text-sm text-[var(--muted)] hover:text-[var(--text)] hover:underline"
+          onClick={logout}
+        >
           Sign out
         </button>
       </header>
 
-      {loading ? <p className="text-slate-400">Loading…</p> : null}
+      {loading ? <p className="text-[var(--muted)]">Loading…</p> : null}
       {err ? (
         <p className="text-amber-400 text-sm" role="alert">
           {err}
         </p>
       ) : null}
 
-      <section className="rounded-xl border border-white/10 bg-slate-900/50 p-4 md:p-6 space-y-4">
-        <h2 className="font-semibold text-lg text-sky-300">Tampermonkey API keys</h2>
-        <p className="text-sm text-slate-400">
-          Use <code className="text-slate-200">Authorization: Bearer &lt;key&gt;</code> on{' '}
-          <code className="text-slate-200">POST /api/ingest/party</code>. Keys start with{' '}
-          <code className="text-slate-200">dnd_</code>. Set <code className="text-slate-200">BACKEND_URL</code> in your
+      <section className="rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--surface)_92%,transparent)] p-4 md:p-6 space-y-4">
+        <h2 className="font-semibold text-lg text-[var(--accent)]">Tampermonkey API keys</h2>
+        <p className="text-sm text-[var(--muted)]">
+          Use <code className="text-[var(--text)]">Authorization: Bearer &lt;key&gt;</code> on{' '}
+          <code className="text-[var(--text)]">POST /api/ingest/party</code>. Keys start with{' '}
+          <code className="text-[var(--text)]">dnd_</code>. Set <code className="text-[var(--text)]">BACKEND_URL</code> in your
           userscript to:
         </p>
         <div className="flex flex-wrap gap-2 items-center">
-          <code className="text-xs bg-black/40 px-2 py-1 rounded break-all text-slate-200">{apiBase}</code>
+          <code className="text-xs bg-[color-mix(in_srgb,var(--surface-elevated)_80%,transparent)] px-2 py-1 rounded break-all text-[var(--text)]">
+            {apiBase}
+          </code>
           <button
             type="button"
-            className="rounded bg-slate-700 px-3 py-1 text-white text-sm"
+            className="rounded bg-[var(--btn-secondary-bg)] px-3 py-1 text-white text-sm hover:bg-[var(--btn-secondary-hover)]"
             onClick={() => void navigator.clipboard.writeText(apiBase)}
           >
             Copy
           </button>
         </div>
-        <p className="text-xs text-slate-500">
-          Add <code className="text-slate-300">// @connect</code> for your host in the userscript (see{' '}
-          <code className="text-slate-300">userscripts/ddb-party-ingest.user.js</code>).
+        <p className="text-xs text-[var(--muted)]">
+          Add <code className="text-[var(--text)]">// @connect</code> for your host in the userscript (see{' '}
+          <code className="text-[var(--text)]">userscripts/ddb-party-ingest.user.js</code>).
         </p>
 
         <div className="flex flex-wrap gap-2 items-end">
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Label (optional)</label>
+            <label className="block text-xs text-[var(--muted)] mb-1">Label (optional)</label>
             <input
-              className="rounded bg-black/30 border border-white/20 px-3 py-2 text-sm w-48"
+              className="rounded bg-[color-mix(in_srgb,var(--surface-elevated)_75%,transparent)] border border-[var(--border-subtle)] px-3 py-2 text-sm w-48 text-[var(--text)]"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="e.g. laptop"
             />
           </div>
-          <button type="button" className="rounded bg-teal-700 px-4 py-2 text-white text-sm" onClick={createKey}>
+          <button
+            type="button"
+            className="rounded bg-[var(--btn-primary-bg)] px-4 py-2 text-white text-sm hover:bg-[var(--btn-primary-hover)]"
+            onClick={createKey}
+          >
             Generate API key
           </button>
         </div>
 
         {issuedKey && (
-          <div className="rounded border border-amber-500/40 bg-amber-950/30 p-3 space-y-2">
-            <p className="text-xs text-amber-200 font-medium">Copy now — shown once</p>
-            <pre className="text-xs font-mono text-slate-100 break-all whitespace-pre-wrap">{issuedKey}</pre>
+          <div className="rounded border border-[var(--warn)]/40 bg-[color-mix(in_srgb,var(--warn)_12%,transparent)] p-3 space-y-2">
+            <p className="text-xs text-[var(--callout-strong)] font-medium">Copy now — shown once</p>
+            <pre className="text-xs font-mono text-[var(--text)] break-all whitespace-pre-wrap">{issuedKey}</pre>
           </div>
         )}
 
         <ul className="space-y-2">
-          {keys.length === 0 ? <li className="text-sm text-slate-500">No keys yet.</li> : null}
+          {keys.length === 0 ? <li className="text-sm text-[var(--muted)]">No keys yet.</li> : null}
           {keys.map((k) => (
             <li
               key={k.id}
-              className="flex flex-wrap justify-between gap-2 items-center text-sm border border-white/10 rounded-lg px-3 py-2"
+              className="flex flex-wrap justify-between gap-2 items-center text-sm border border-[var(--border-subtle)] rounded-lg px-3 py-2"
             >
-              <span className="font-mono text-slate-300">{k.keyPrefix}…</span>
-              <span className="text-slate-500">
+              <span className="font-mono text-[var(--text)]">{k.keyPrefix}…</span>
+              <span className="text-[var(--muted)]">
                 {k.label ?? '—'} · created {new Date(k.createdAt).toLocaleString()}
                 {k.lastUsedAt != null ? ` · last used ${new Date(k.lastUsedAt).toLocaleString()}` : ''}
               </span>
-              <button type="button" className="text-rose-400 hover:underline text-sm" onClick={() => revoke(k.id)}>
+              <button
+                type="button"
+                className="text-[var(--danger)] hover:underline text-sm"
+                onClick={() => revoke(k.id)}
+              >
                 Revoke
               </button>
             </li>
@@ -186,19 +200,20 @@ export default function AccountPage() {
         </ul>
       </section>
 
-      <section className="rounded-xl border border-white/10 bg-slate-900/50 p-4 md:p-6 space-y-2">
-        <h2 className="font-semibold text-lg text-sky-300">Latest upload</h2>
+      <section className="rounded-xl border border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--surface)_92%,transparent)] p-4 md:p-6 space-y-2">
+        <h2 className="font-semibold text-lg text-[var(--accent)]">Latest upload</h2>
         {uploadMeta ? (
-          <p className="text-sm text-slate-300">
+          <p className="text-sm text-[var(--text)]">
             <strong>{uploadMeta.characterCount}</strong> character(s) · updated{' '}
             {new Date(uploadMeta.updatedAt).toLocaleString()}
           </p>
         ) : (
-          <p className="text-sm text-slate-500">No data ingested yet from Tampermonkey.</p>
+          <p className="text-sm text-[var(--muted)]">No data ingested yet from Tampermonkey.</p>
         )}
-        <p className="text-xs text-slate-500">
-          Open a <strong className="text-slate-400">DM session</strong> and use <strong className="text-slate-400">Load upload into this table</strong>{' '}
-          on the console (you must stay signed in here in the same browser).
+        <p className="text-xs text-[var(--muted)]">
+          Open a <strong className="text-[var(--text)]">DM session</strong> and use{' '}
+          <strong className="text-[var(--text)]">Load upload into this table</strong> on the console (you must stay signed in here
+          in the same browser).
         </p>
       </section>
     </div>

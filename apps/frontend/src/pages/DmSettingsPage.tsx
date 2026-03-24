@@ -6,10 +6,12 @@ import { apiGet, apiPatch, apiPost, apiPut, ApiHttpError } from '../api';
 import PartyWidgetOptionsPanel from '../components/settings/PartyWidgetOptionsPanel';
 import { USER_EMAIL_KEY, USER_TOKEN_KEY } from '../auth-storage';
 import { useSessionSocket } from '../hooks/useSessionSocket';
-import { applyRootTableTheme } from '../theme/tableTheme';
+import { applySessionVisualTheme } from '../theme/tableTheme';
 
 const UNAUTH_DM_HINT =
   'The server does not recognize this DM session (sessions are stored in memory). This usually happens after restarting the backend—open the home page and start a new session.';
+
+const SETTINGS_DEV_MODE_LS = 'ddb_settings_dev_mode';
 
 export default function DmSettingsPage() {
   const nav = useNavigate();
@@ -32,6 +34,13 @@ export default function DmSettingsPage() {
   const [displayPinRevision, setDisplayPinRevision] = useState<number | null>(null);
   const [gatePinErr, setGatePinErr] = useState<string | null>(null);
   const [gatePinOk, setGatePinOk] = useState<string | null>(null);
+  const [devMode, setDevMode] = useState(() => {
+    try {
+      return localStorage.getItem(SETTINGS_DEV_MODE_LS) === '1';
+    } catch {
+      return false;
+    }
+  });
 
   const partyCardSig =
     state?.partyCardDisplay != null ? JSON.stringify(state.partyCardDisplay) : '';
@@ -85,8 +94,8 @@ export default function DmSettingsPage() {
   }, [sessionId, dmToken]);
 
   useEffect(() => {
-    applyRootTableTheme(state?.theme ?? 'minimal');
-  }, [state?.theme]);
+    applySessionVisualTheme(state?.theme ?? 'minimal', state?.themePalette ?? null);
+  }, [state?.theme, state?.themePalette]);
 
   const displayUrl = useMemo(() => {
     if (!displayToken) return '';
@@ -229,10 +238,10 @@ export default function DmSettingsPage() {
       <header className="flex flex-wrap gap-4 justify-between items-center mb-6">
         <div className="flex flex-wrap items-center gap-3">
           <Link
-            to="/dm"
+            to="/master"
             className="text-sm text-sky-400 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded"
           >
-            ← DM Console
+            ← Master Console
           </Link>
           <h1 className="text-2xl md:text-3xl font-display font-bold text-[var(--accent)]">Settings</h1>
         </div>
@@ -245,12 +254,48 @@ export default function DmSettingsPage() {
         </span>
       </header>
 
+      <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text)] select-none">
+          <input
+            type="checkbox"
+            className="rounded border-white/30"
+            checked={devMode}
+            onChange={(e) => {
+              const on = e.target.checked;
+              setDevMode(on);
+              try {
+                localStorage.setItem(SETTINGS_DEV_MODE_LS, on ? '1' : '0');
+              } catch {
+                /* ignore */
+              }
+            }}
+          />
+          Enable dev mode
+        </label>
+        {!devMode ? (
+          <p className="mt-2 text-xs text-[var(--muted)]">
+            Hides party card widget options, live TV preview, Tampermonkey / API setup, and optional D&amp;D Beyond seed.
+            Turn on for full power-user controls.
+          </p>
+        ) : (
+          <p className="mt-2 text-sm text-[var(--muted)]">
+            <Link
+              to="/dm/settings/theme-builder"
+              className="text-sky-400 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded"
+            >
+              Create new theme
+            </Link>{' '}
+            — name, colours, and palette-based UI tokens (saved per account).
+          </p>
+        )}
+      </div>
+
       {sessionLost && (
         <div
           className="mb-6 rounded-xl border border-amber-500/40 bg-amber-950/35 px-4 py-3 text-sm text-amber-100"
           role="alert"
         >
-          <strong className="text-amber-200">DM session missing on the server.</strong> The API rejected your saved
+          <strong className="text-amber-200">Master session missing on the server.</strong> The API rejected your saved
           tokens—often because the Node backend was restarted and in-memory sessions were cleared. Socket.IO can still
           show &quot;Connected&quot; even though REST calls fail.{' '}
           <button type="button" className="text-sky-300 underline font-medium" onClick={() => nav('/')}>
@@ -275,7 +320,7 @@ export default function DmSettingsPage() {
               <Link to="/account" className="text-sky-400 hover:underline">
                 Tampermonkey API keys
               </Link>
-              , and pull uploads into this table from the DM console.
+              , and pull uploads into this table from the Master console.
             </p>
           ) : (
             <>
@@ -319,16 +364,106 @@ export default function DmSettingsPage() {
         </section>
       )}
 
-      <PartyWidgetOptionsPanel
-        value={partyCardOpts}
-        onChange={(next) => {
-          setPartyOptsErr(null);
-          setPartyCardOpts(next);
-        }}
-        onApplyToSession={() => void applyPartyCardOpts()}
-        applyDisabled={sessionLost}
-        error={partyOptsErr}
-      />
+      {devMode ? (
+        <PartyWidgetOptionsPanel
+          value={partyCardOpts}
+          onChange={(next) => {
+            setPartyOptsErr(null);
+            setPartyCardOpts(next);
+          }}
+          onApplyToSession={() => void applyPartyCardOpts()}
+          applyDisabled={sessionLost}
+          error={partyOptsErr}
+        />
+      ) : null}
+
+      <section className="rounded-xl border border-violet-500/25 bg-[var(--surface)] p-4 md:p-6 space-y-3">
+        <h2 className="font-semibold text-lg text-[var(--accent)]">D&amp;D Beyond party ingest (Tampermonkey)</h2>
+        <p className="text-sm text-[var(--muted)]">
+          Browser userscript that pulls character JSON from D&amp;D Beyond and POSTs it to this DM Screen deployment (
+          <code className="text-[var(--text)]">https://dnd.saltbushlabs.com</code>). Generate an API key on{' '}
+          <Link to="/account" className="text-[var(--link)] hover:text-[var(--link-hover)] hover:underline">
+            Account
+          </Link>
+          , paste it into the script (see guide), then use <strong className="text-[var(--text)]">Load upload into this table</strong>{' '}
+          on the Master console after pushing.
+        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <a
+            href="/userscripts/ddb-party-ingest.user.js"
+            download="ddb-party-ingest.user.js"
+            className="inline-flex rounded-lg bg-violet-800 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          >
+            Download userscript
+          </a>
+          <span className="text-xs text-[var(--muted)]">Right-click and <strong className="text-[var(--text)]">Save as…</strong></span>
+        </div>
+        <details className="rounded-lg border border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--surface-elevated)_55%,transparent)] p-3 text-sm text-[var(--muted)]">
+          <summary className="cursor-pointer font-medium text-[var(--text)] select-none">
+            Installation guide
+          </summary>
+          <ol className="mt-3 list-decimal space-y-3 pl-5">
+            <li>
+              Install <strong className="text-[var(--text)]">Tampermonkey</strong> from the{' '}
+              <a
+                href="https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo"
+                className="text-[var(--link)] hover:text-[var(--link-hover)] hover:underline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Chrome Web Store
+              </a>{' '}
+              (or your browser&apos;s equivalent).
+            </li>
+            <li>
+              <strong className="text-[var(--text)]">Allow user scripts (required in Chrome):</strong> open{' '}
+              <strong className="text-[var(--text)]">Extensions</strong> (puzzle icon) → <strong className="text-[var(--text)]">Manage extensions</strong> →
+              Tampermonkey → <strong className="text-[var(--text)]">Details</strong>. Turn on{' '}
+              <strong className="text-[var(--text)]">Allow User Scripts</strong> — Chrome shows a warning that the extension can
+              run code not reviewed by Google; this app&apos;s ingest script is open source and only runs on D&amp;D Beyond + your
+              chosen backend. Without this, Tampermonkey may not run scripts reliably under Manifest V3.
+            </li>
+            <li>
+              Still under Tampermonkey <strong className="text-[var(--text)]">Details</strong>, set{' '}
+              <strong className="text-[var(--text)]">Site access</strong> to include{' '}
+              <code className="text-[var(--text)]">dndbeyond.com</code> (or <strong className="text-[var(--text)]">On all sites</strong>{' '}
+              while testing). Optionally allow <strong className="text-[var(--text)]">Allow access to file URLs</strong> if you install
+              from a downloaded file.
+            </li>
+            <li>
+              Download <strong className="text-[var(--text)]">ddb-party-ingest.user.js</strong> above. In Tampermonkey:{' '}
+              <strong className="text-[var(--text)]">Dashboard → Utilities → Install from file</strong>, or drag the file into Chrome.
+            </li>
+            <li>
+              Open the script in Tampermonkey&apos;s editor. For <strong className="text-[var(--text)]">this</strong> deployment,{' '}
+              <code className="text-[var(--text)]">BACKEND_URL</code> is already{' '}
+              <code className="text-[var(--text)]">https://dnd.saltbushlabs.com</code> and <code className="text-[var(--text)]">@connect</code>{' '}
+              includes that host. Replace <code className="text-[var(--text)]">CHANGEME</code> in{' '}
+              <code className="text-[var(--text)]">DND_API_KEY</code> with a key from{' '}
+              <Link to="/account" className="text-[var(--link)] hover:text-[var(--link-hover)] hover:underline">
+                Account → Generate API key
+              </Link>
+              . Save. <strong className="text-[var(--text)]">Self-hosting?</strong> Set <code className="text-[var(--text)]">BACKEND_URL</code>{' '}
+              to your origin and add <code className="text-[var(--text)]">// @connect your.hostname</code> in the header
+              {devMode ? (
+                <> (backend URL also under <strong className="text-[var(--text)]">D&amp;D Beyond data (Tampermonkey)</strong> below).</>
+              ) : (
+                <> (enable <strong className="text-[var(--text)]">dev mode</strong> in Settings for a copy button).</>
+              )}
+            </li>
+            <li>
+              The script posts via <code className="text-[var(--text)]">GM_xmlhttpRequest</code>. If pushes fail, check Tampermonkey&apos;s
+              script errors and that your API key is valid. The header <code className="text-[var(--text)]">@require</code> loads a D&amp;D
+              Beyond bundle from <code className="text-[var(--text)]">media.dndbeyond.com</code>; if DDB renames it, update the{' '}
+              <code className="text-[var(--text)]">@require</code> line (see comments at the top of the file).
+            </li>
+            <li>
+              Open a <strong className="text-[var(--text)]">character or campaign</strong> page on D&amp;D Beyond and use the floating
+              panel (Pull / Push / auto-sync).
+            </li>
+          </ol>
+        </details>
+      </section>
 
       <section className="rounded-xl border border-white/10 bg-[var(--surface)] p-4 md:p-6 space-y-3">
         <h2 className="font-semibold text-lg text-[var(--accent)]">Display link</h2>
@@ -415,54 +550,58 @@ export default function DmSettingsPage() {
         ) : null}
       </section>
 
-      <section className="rounded-xl border border-teal-500/25 bg-[var(--surface)] p-4 md:p-6 space-y-2">
-        <h2 className="font-semibold text-lg text-[var(--accent)]">D&amp;D Beyond data (Tampermonkey)</h2>
-        <p className="text-sm text-[var(--muted)]">
-          Party JSON is sent to your account with an <strong className="text-[var(--text)]">API key</strong> (not this DM
-          session). Configure keys and copy your backend URL on the{' '}
-          <Link to="/account" className="text-sky-400 hover:underline">
-            Account
-          </Link>{' '}
-          page. Then use <strong className="text-[var(--text)]">Load upload into this table</strong> on the DM console
-          (while signed in).
-        </p>
-        <p className="text-xs text-[var(--muted)]">
-          Backend base URL for scripts: <code className="text-[var(--text)] break-all">{apiBase || '—'}</code>
-        </p>
-        <button
-          type="button"
-          className="rounded bg-slate-700 px-3 py-2 text-white text-sm"
-          disabled={!apiBase}
-          onClick={() => void navigator.clipboard.writeText(apiBase)}
-        >
-          Copy backend URL
-        </button>
-      </section>
+      {devMode ? (
+        <section className="rounded-xl border border-teal-500/25 bg-[var(--surface)] p-4 md:p-6 space-y-2">
+          <h2 className="font-semibold text-lg text-[var(--accent)]">D&amp;D Beyond data (Tampermonkey)</h2>
+          <p className="text-sm text-[var(--muted)]">
+            Party JSON is sent to your account with an <strong className="text-[var(--text)]">API key</strong> (not this DM
+            session). Configure keys and copy your backend URL on the{' '}
+            <Link to="/account" className="text-sky-400 hover:underline">
+              Account
+            </Link>{' '}
+            page. Then use <strong className="text-[var(--text)]">Load upload into this table</strong> on the Master console
+            (while signed in).
+          </p>
+          <p className="text-xs text-[var(--muted)]">
+            Backend base URL for scripts: <code className="text-[var(--text)] break-all">{apiBase || '—'}</code>
+          </p>
+          <button
+            type="button"
+            className="rounded bg-slate-700 px-3 py-2 text-white text-sm"
+            disabled={!apiBase}
+            onClick={() => void navigator.clipboard.writeText(apiBase)}
+          >
+            Copy backend URL
+          </button>
+        </section>
+      ) : null}
 
-      <section className="rounded-xl border border-white/10 bg-[var(--surface)] p-4 md:p-6 space-y-3">
-        <h2 className="font-semibold text-lg text-[var(--accent)]">D&amp;D Beyond seed (optional)</h2>
-        <p className="text-xs text-[var(--muted)]">
-          Numeric character ID from the sheet URL (<code className="text-[var(--text)]">…/characters/89992293</code>).
-          <strong className="text-[var(--text)]"> Refresh party</strong> only works if the server has{' '}
-          <code className="text-[var(--text)]">DDB_COOKIE</code> in <code className="text-[var(--text)]">.env</code> (no
-          browser cookie flow anymore).
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <input
-            className="rounded bg-black/30 border border-white/20 px-3 py-2 w-40"
-            placeholder="Character ID"
-            value={seedInput}
-            onChange={(e) => setSeedInput(e.target.value)}
-            aria-label="D&D Beyond seed character ID"
-          />
-          <button type="button" className="rounded bg-amber-700 px-3 py-2 text-white text-sm" onClick={() => void pushSeed()}>
-            Save seed
-          </button>
-          <button type="button" className="rounded bg-emerald-700 px-3 py-2 text-white text-sm" onClick={refreshParty}>
-            Refresh party
-          </button>
-        </div>
-      </section>
+      {devMode ? (
+        <section className="rounded-xl border border-white/10 bg-[var(--surface)] p-4 md:p-6 space-y-3">
+          <h2 className="font-semibold text-lg text-[var(--accent)]">D&amp;D Beyond seed (optional)</h2>
+          <p className="text-xs text-[var(--muted)]">
+            Numeric character ID from the sheet URL (<code className="text-[var(--text)]">…/characters/89992293</code>).
+            <strong className="text-[var(--text)]"> Refresh party</strong> only works if the server has{' '}
+            <code className="text-[var(--text)]">DDB_COOKIE</code> in <code className="text-[var(--text)]">.env</code> (no
+            browser cookie flow anymore).
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <input
+              className="rounded bg-black/30 border border-white/20 px-3 py-2 w-40"
+              placeholder="Character ID"
+              value={seedInput}
+              onChange={(e) => setSeedInput(e.target.value)}
+              aria-label="D&D Beyond seed character ID"
+            />
+            <button type="button" className="rounded bg-amber-700 px-3 py-2 text-white text-sm" onClick={() => void pushSeed()}>
+              Save seed
+            </button>
+            <button type="button" className="rounded bg-emerald-700 px-3 py-2 text-white text-sm" onClick={refreshParty}>
+              Refresh party
+            </button>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

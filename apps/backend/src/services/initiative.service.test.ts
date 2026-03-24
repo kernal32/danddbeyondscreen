@@ -172,7 +172,7 @@ describe('initiative.service', () => {
     expect(next[0]!.roundsRemaining).toBe(2);
   });
 
-  it('sorts ties by higher initiative bonus (mod)', () => {
+  it('sorts ties by higher initiative bonus (mod) when dexMod is absent', () => {
     let s = emptyInitiativeState();
     s = addCombatant(s, { label: 'LowBonus', initiativeTotal: 18, mod: 1 });
     s = addCombatant(s, { label: 'HighBonus', initiativeTotal: 18, mod: 5 });
@@ -181,6 +181,17 @@ describe('initiative.service', () => {
     s = sortInitiative(s);
     expect(s.turnOrder[0]).toBe(highId);
     expect(s.turnOrder[1]).toBe(lowId);
+  });
+
+  it('sorts same total by higher dexMod before initiative bonus (mod)', () => {
+    let s = emptyInitiativeState();
+    s = addCombatant(s, { label: 'HighDexLowMod', initiativeTotal: 20, mod: 1, dexMod: 5 });
+    s = addCombatant(s, { label: 'LowDexHighMod', initiativeTotal: 20, mod: 8, dexMod: 0 });
+    const highDexId = s.turnOrder[0]!;
+    const lowDexId = s.turnOrder[1]!;
+    s = sortInitiative(s);
+    expect(s.turnOrder[0]).toBe(highDexId);
+    expect(s.turnOrder[1]).toBe(lowDexId);
   });
 
   it('startCombatFromParty skips absent characters', () => {

@@ -69,6 +69,14 @@ export interface PartyCardDisplayOptions {
   showPassiveInsight: boolean;
   showClassCombatSummary: boolean;
   showSpellSlots: boolean;
+  /** Spell slot progress bars under slot counts. */
+  showSpellSlotBars: boolean;
+  /** Spell slots show as filled/unfilled pips instead of numeric counts. */
+  showSpellSlotPips: boolean;
+  /** Class resource progress bars under resource counts. */
+  showClassResourceBars: boolean;
+  /** Class resources show as filled/unfilled pips instead of numeric counts. */
+  showClassResourcePips: boolean;
   showConditions: boolean;
   /** Full vertical section order; omitted or empty → canonical default. */
   sectionOrder?: PlayerCardSectionId[];
@@ -92,6 +100,10 @@ export const DEFAULT_PARTY_CARD_DISPLAY_OPTIONS: PartyCardDisplayOptions = {
   showPassiveInsight: true,
   showClassCombatSummary: true,
   showSpellSlots: true,
+  showSpellSlotBars: true,
+  showSpellSlotPips: false,
+  showClassResourceBars: true,
+  showClassResourcePips: false,
   showConditions: true,
 };
 
@@ -113,6 +125,10 @@ const BOOLEAN_KEYS = [
   'showPassiveInsight',
   'showClassCombatSummary',
   'showSpellSlots',
+  'showSpellSlotBars',
+  'showSpellSlotPips',
+  'showClassResourceBars',
+  'showClassResourcePips',
   'showConditions',
 ] as const satisfies readonly (keyof PartyCardDisplayOptions)[];
 

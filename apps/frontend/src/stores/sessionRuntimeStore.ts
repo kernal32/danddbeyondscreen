@@ -52,6 +52,7 @@ export const useSessionRuntimeStore = create<SessionRuntimeState>((set, get) => 
     set({
       publicSession: {
         ...s,
+        themePalette: s.themePalette ?? null,
         initiative: {
           ...s.initiative,
           markedEntryId: s.initiative.markedEntryId ?? null,
@@ -65,6 +66,7 @@ export const useSessionRuntimeStore = create<SessionRuntimeState>((set, get) => 
     set({
       publicSession: {
         ...boot,
+        themePalette: boot.themePalette ?? null,
         initiative: {
           ...boot.initiative,
           markedEntryId: boot.initiative.markedEntryId ?? null,

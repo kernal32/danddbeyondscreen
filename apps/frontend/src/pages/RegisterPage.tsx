@@ -30,15 +30,15 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="theme-minimal min-h-screen flex flex-col items-center justify-center gap-4 p-8 max-w-md mx-auto">
-      <h1 className="text-3xl font-display font-bold text-sky-400">Create account</h1>
-      <p className="text-slate-400 text-center text-sm">Password must be at least 10 characters. Use HTTPS in production.</p>
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-8 max-w-md mx-auto">
+      <h1 className="text-3xl font-display font-bold text-[var(--accent)]">Create account</h1>
+      <p className="text-[var(--muted)] text-center text-sm">Password must be at least 10 characters. Use HTTPS in production.</p>
       <label className="w-full text-sm text-[var(--muted)]">
         Email
         <input
           type="email"
           autoComplete="email"
-          className="mt-1 w-full rounded-lg bg-black/30 border border-white/20 px-3 py-2 text-[var(--text)]"
+          className="mt-1 w-full rounded-lg bg-[color-mix(in_srgb,var(--surface-elevated)_75%,transparent)] border border-[var(--border-subtle)] px-3 py-2 text-[var(--text)]"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -48,7 +48,7 @@ export default function RegisterPage() {
         <input
           type="password"
           autoComplete="new-password"
-          className="mt-1 w-full rounded-lg bg-black/30 border border-white/20 px-3 py-2 text-[var(--text)]"
+          className="mt-1 w-full rounded-lg bg-[color-mix(in_srgb,var(--surface-elevated)_75%,transparent)] border border-[var(--border-subtle)] px-3 py-2 text-[var(--text)]"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
@@ -57,17 +57,17 @@ export default function RegisterPage() {
         type="button"
         disabled={loading}
         onClick={() => void submit()}
-        className="w-full rounded-lg bg-sky-600 px-4 py-2 font-semibold text-white hover:bg-sky-500 disabled:opacity-50"
+        className="w-full rounded-lg bg-[var(--btn-primary-bg)] px-4 py-2 font-semibold text-white hover:bg-[var(--btn-primary-hover)] disabled:opacity-50"
       >
         {loading ? 'Creating…' : 'Register'}
       </button>
-      {err && <p className="text-red-400 text-sm text-center">{err}</p>}
+      {err && <p className="text-[var(--danger)] text-sm text-center">{err}</p>}
       <p className="text-sm text-[var(--muted)]">
-        <Link to="/login" className="text-sky-400 hover:underline">
+        <Link to="/login" className="text-[var(--link)] hover:text-[var(--link-hover)] hover:underline">
           Sign in instead
         </Link>
         {' · '}
-        <Link to="/" className="text-sky-400 hover:underline">
+        <Link to="/" className="text-[var(--link)] hover:text-[var(--link-hover)] hover:underline">
           Home
         </Link>
       </p>

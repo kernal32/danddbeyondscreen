@@ -5,6 +5,8 @@ export const TABLE_THEME_IDS = [
   'darkArcane',
   'parchment',
   'stoneDungeon',
+  'sciFi',
+  'organic',
 ] as const;
 
 export type TableTheme = (typeof TABLE_THEME_IDS)[number];
