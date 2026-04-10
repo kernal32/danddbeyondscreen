@@ -1199,9 +1199,55 @@
   }
 
   /**
+   * Walk the React fibre tree on the campaign page to find DDB's own computed armorClass for
+   * the given character ID.  DDB runs the full character-tools calculation client-side and
+   * stores the result in component props — this lets us read the accurate value without
+   * replicating all of DDB's AC rules ourselves.
+   */
+  function __readAcFromReactPage(charId) {
+    try {
+      const idStr = String(charId);
+      // Locate any DOM element tied to this character (card link, card root, data-attribute).
+      const candidates = [
+        document.querySelector('[data-entity-id="' + idStr + '"]'),
+        document.querySelector('[data-character-id="' + idStr + '"]'),
+        document.querySelector('a[href*="/characters/' + idStr + '"]'),
+      ];
+      let startEl = null;
+      for (let ci = 0; ci < candidates.length; ci++) {
+        if (candidates[ci]) { startEl = candidates[ci]; break; }
+      }
+      if (!startEl) return null;
+      // Walk up a few levels to reach the card root where richer props live.
+      let rootEl = startEl;
+      for (let up = 0; up < 6 && rootEl.parentElement; up++) rootEl = rootEl.parentElement;
+      // Find the React internal fibre key (React 16+: __reactFiber$…; older: __reactInternalInstance$…).
+      const fKey = Object.keys(rootEl).find(function (k) {
+        return k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance');
+      });
+      if (!fKey) return null;
+      let fiber = rootEl[fKey];
+      let depth = 0;
+      while (fiber && depth < 60) {
+        const props = fiber.memoizedProps || fiber.pendingProps || {};
+        // Direct armorClass prop.
+        if (typeof props.armorClass === 'number') return props.armorClass;
+        // Nested under character / characterData / data / entity.
+        const nested = props.character || props.characterData || props.data || props.entity;
+        if (nested && typeof nested === 'object') {
+          if (typeof nested.armorClass === 'number') return nested.armorClass;
+        }
+        fiber = fiber.return;
+        depth++;
+      }
+    } catch (_) { /* non-critical */ }
+    return null;
+  }
+
+  /**
    * Compute AC from raw DDB character JSON (inventory + modifiers).
-   * The raw endpoints (legacy /json and character-service v5) do not return a pre-computed
-   * armorClass field — we have to derive it ourselves.
+   * Collects all equipped armors and picks the one that yields the HIGHEST effective AC
+   * (prevents wrong result when DDB keeps multiple armors with equipped:true in inventory).
    *
    * DDB armorTypeId: 1=light, 2=medium, 3=heavy, 4=shield
    */
@@ -1209,15 +1255,18 @@
     if (!c || typeof c !== 'object') return null;
     const dexMod = __getStatModFromCharacter(c, 2);
     const inv = Array.isArray(c.inventory) ? c.inventory : [];
-    let baseArmorAc = null;
-    let armorTypeId = 0;
+    const equippedArmors = [];
     let hasShield = false;
     for (let i = 0; i < inv.length; i++) {
       const item = inv[i];
-      if (!item || !item.equipped) continue;
+      if (!item) continue;
+      // Handle boolean, numeric, and string equipped flags.
+      const eq = item.equipped ?? item.isEquipped;
+      if (!eq || eq === '0' || eq === 'false') continue;
       const def = item.definition;
       if (!def || typeof def !== 'object') continue;
-      const isArmor = def.filterType === 'Armor' || def.type === 'Armor' || def.armorTypeId != null;
+      const isArmor = def.filterType === 'Armor' || def.type === 'Armor' ||
+                      (def.armorTypeId != null && def.armorTypeId !== 0);
       if (!isArmor) continue;
       const tid = Number(def.armorTypeId) || 0;
       if (tid === 4 || def.isShield === true) {
@@ -1225,21 +1274,22 @@
       } else {
         const bac = Number(def.baseArmorClass);
         if (Number.isFinite(bac) && bac > 0) {
-          baseArmorAc = bac;
-          armorTypeId = tid;
+          equippedArmors.push({ bac: bac, tid: tid });
         }
       }
     }
-    let ac;
-    if (baseArmorAc !== null) {
-      if (armorTypeId === 1) ac = baseArmorAc + dexMod;
-      else if (armorTypeId === 2) ac = baseArmorAc + Math.min(2, dexMod);
-      else ac = baseArmorAc; // heavy (3) or unknown — no DEX bonus
-    } else {
-      ac = 10 + dexMod; // unarmored base
+    // Pick the armor that gives the highest effective AC (important when multiple are equipped).
+    let baseAc = 10 + dexMod;
+    for (let ai = 0; ai < equippedArmors.length; ai++) {
+      const a = equippedArmors[ai];
+      let eff;
+      if (a.tid === 1) eff = a.bac + dexMod;
+      else if (a.tid === 2) eff = a.bac + Math.min(2, dexMod);
+      else eff = a.bac; // heavy (3) or unrecognised — no DEX
+      if (eff > baseAc) baseAc = eff;
     }
-    if (hasShield) ac += 2;
-    // Add flat AC bonuses from all modifier buckets (e.g. Defense fighting style +1)
+    if (hasShield) baseAc += 2;
+    // Add flat AC bonuses from all modifier buckets (e.g. Defense fighting style +1).
     const mods = c.modifiers;
     if (mods && typeof mods === 'object') {
       const buckets = Object.keys(mods);
@@ -1249,23 +1299,29 @@
         for (let mi = 0; mi < arr.length; mi++) {
           const m = arr[mi];
           if (m && m.type === 'bonus' && m.subType === 'armor-class') {
-            ac += Number(m.value) || 0;
+            baseAc += Number(m.value) || 0;
           }
         }
       }
     }
-    return Number.isFinite(ac) ? Math.round(ac) : null;
+    return Number.isFinite(baseAc) ? Math.round(baseAc) : null;
   }
 
   function displayArmorClass(c) {
     if (!c || typeof c !== 'object') return '—';
-    const keys = ['armorClass', 'calculatedArmorClass', 'armor_class'];
-    for (let i = 0; i < keys.length; i++) {
-      const v = c[keys[i]];
-      if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 50) return String(Math.round(v));
+    // 1. Prefer any pre-computed field from legacy or processed endpoints.
+    const topKeys = ['armorClass', 'calculatedArmorClass', 'armor_class'];
+    for (let i = 0; i < topKeys.length; i++) {
+      const v = c[topKeys[i]];
+      if (typeof v === 'number' && Number.isFinite(v) && v >= 1 && v <= 50) return String(Math.round(v));
       if (typeof v === 'string' && /^\d+$/.test(v.trim())) return v.trim();
     }
-    // Raw endpoints don't provide a computed armorClass — derive it from inventory + modifiers.
+    // 2. Try to read DDB's own computed value from the React component tree on the page.
+    if (c.id) {
+      const reactAc = __readAcFromReactPage(c.id);
+      if (reactAc !== null && reactAc >= 1 && reactAc <= 50) return String(reactAc);
+    }
+    // 3. Compute from raw inventory + modifiers (handles most common armour + shield + FS combos).
     const computed = __computeArmorClassFromRaw(c);
     if (computed !== null) return String(computed);
     return String(10 + __getStatModFromCharacter(c, 2));
