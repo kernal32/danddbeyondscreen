@@ -14,9 +14,13 @@
 // @connect      character-service.dndbeyond.com
 // @connect      www.dndbeyond.com
 // @connect      dndbeyond.com
+// @connect      *
 // @grant        unsafeWindow
+// @grant        GM_xmlhttpRequest
+// @require      https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js
 // ==/UserScript==
 
+/* global qrcode, io */
 (function () {
   'use strict';
 
@@ -2670,6 +2674,7 @@
     localInitState = mutator(localInitState || emptyLocalInitiativeState());
     saveLocalInitiativeState();
     renderLocalInitiativeUi();
+    remoteSync.pushState(localInitState);
   }
 
   function buildPartyCombatState() {
@@ -2707,6 +2712,7 @@
     localInitState = s;
     saveLocalInitiativeState();
     renderLocalInitiativeUi();
+    remoteSync.pushState(localInitState);
   }
 
   function abbrevConditionLabel(name) {
@@ -4250,6 +4256,7 @@
         localInitState = emptyLocalInitiativeState();
         saveLocalInitiativeState();
         renderLocalInitiativeUi();
+        remoteSync.pushState(localInitState);
       }),
     );
 
@@ -4498,6 +4505,119 @@
     densitySection.appendChild(densityRow);
     settingsBody.appendChild(densitySection);
 
+    /** Remote Control section */
+    var rcSection = document.createElement('div');
+    rcSection.style.marginTop = '16px';
+    var rcTitle = document.createElement('div');
+    rcTitle.className = 'dib-settings-section-title';
+    rcTitle.textContent = 'Remote Control';
+    rcSection.appendChild(rcTitle);
+
+    var rcServerRow = document.createElement('div');
+    rcServerRow.style.marginBottom = '8px';
+    var rcServerLabel = document.createElement('label');
+    rcServerLabel.textContent = 'Server URL';
+    rcServerLabel.style.cssText = 'display:block;font-size:11px;color:#aaa;margin-bottom:2px;';
+    var rcServerInput = document.createElement('input');
+    rcServerInput.type = 'text';
+    rcServerInput.placeholder = 'https://your-server.example.com';
+    rcServerInput.style.cssText = 'width:100%;box-sizing:border-box;padding:4px 6px;border-radius:4px;border:1px solid #555;background:#1a1a1e;color:#fff;font-size:12px;';
+    try { var prevCfg = JSON.parse(PAGE.localStorage.getItem('ddbInitBarRemoteSyncV1') || '{}'); rcServerInput.value = prevCfg.serverUrl || ''; } catch (_) {}
+    rcServerRow.appendChild(rcServerLabel);
+    rcServerRow.appendChild(rcServerInput);
+    rcSection.appendChild(rcServerRow);
+
+    var rcStatus = document.createElement('div');
+    rcStatus.style.cssText = 'font-size:12px;color:#6b7280;margin-bottom:8px;';
+    rcStatus.textContent = 'Disconnected';
+
+    var rcQrContainer = document.createElement('div');
+    rcQrContainer.style.cssText = 'margin:8px 0;text-align:center;';
+
+    remoteSync.setUiRefs(rcStatus, rcQrContainer);
+
+    var rcBtnRow = document.createElement('div');
+    rcBtnRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;';
+
+    function rcBtn(label, fn) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.style.cssText = 'padding:4px 10px;border-radius:4px;border:1px solid #555;background:#2a2a2e;color:#fff;font-size:11px;cursor:pointer;';
+      b.addEventListener('click', fn);
+      return b;
+    }
+
+    var rcEnableBtn = rcBtn('Enable Remote Control', function () {
+      remoteSync.enable(rcServerInput.value.trim());
+      PAGE.setTimeout(function () {
+        if (remoteSync.getConfig()) {
+          remoteSync.renderQrCode();
+          rcOpenBtn.style.display = '';
+          rcCopyBtn.style.display = '';
+          rcRegenBtn.style.display = '';
+          rcShowQrBtn.style.display = '';
+          rcDisableBtn.style.display = '';
+          rcEnableBtn.style.display = 'none';
+        }
+      }, 2500);
+    });
+
+    var rcDisableBtn = rcBtn('Disable', function () {
+      remoteSync.disconnect();
+      rcEnableBtn.style.display = '';
+      rcDisableBtn.style.display = 'none';
+      rcOpenBtn.style.display = 'none';
+      rcCopyBtn.style.display = 'none';
+      rcRegenBtn.style.display = 'none';
+      rcShowQrBtn.style.display = 'none';
+    });
+
+    var rcOpenBtn = rcBtn('Open on this device', function () {
+      var u = remoteSync.getRemoteUrl();
+      if (u) PAGE.open(u, '_blank');
+    });
+
+    var rcCopyBtn = rcBtn('Copy link', function () {
+      var u = remoteSync.getRemoteUrl();
+      if (u && navigator.clipboard) navigator.clipboard.writeText(u);
+    });
+
+    var rcRegenBtn = rcBtn('Regenerate QR', function () {
+      remoteSync.enable(rcServerInput.value.trim());
+      PAGE.setTimeout(function () {
+        if (remoteSync.getConfig()) remoteSync.renderQrCode();
+      }, 2500);
+    });
+
+    var rcShowQrBtn = rcBtn('Show QR Code', function () {
+      if (remoteSync.getConfig()) remoteSync.renderQrCode();
+    });
+
+    var hasExisting = !!remoteSync.getConfig();
+    rcDisableBtn.style.display = hasExisting ? '' : 'none';
+    rcOpenBtn.style.display = hasExisting ? '' : 'none';
+    rcCopyBtn.style.display = hasExisting ? '' : 'none';
+    rcRegenBtn.style.display = hasExisting ? '' : 'none';
+    rcShowQrBtn.style.display = hasExisting ? '' : 'none';
+    rcEnableBtn.style.display = hasExisting ? 'none' : '';
+
+    rcBtnRow.appendChild(rcEnableBtn);
+    rcBtnRow.appendChild(rcDisableBtn);
+    rcBtnRow.appendChild(rcShowQrBtn);
+    rcBtnRow.appendChild(rcOpenBtn);
+    rcBtnRow.appendChild(rcCopyBtn);
+    rcBtnRow.appendChild(rcRegenBtn);
+    rcSection.appendChild(rcBtnRow);
+    rcSection.appendChild(rcStatus);
+    rcSection.appendChild(rcQrContainer);
+
+    settingsBody.appendChild(rcSection);
+
+    if (hasExisting) {
+      PAGE.setTimeout(function () { remoteSync.renderQrCode(); }, 500);
+    }
+
     settingsPanel.appendChild(settingsHeader);
     settingsPanel.appendChild(settingsBody);
     const settingsFooter = document.createElement('div');
@@ -4520,6 +4640,11 @@
     /** Apply persisted settings immediately after wrap is in DOM. */
     barSettings = loadBarSettings();
     applyBarSettings(barSettings, wrap);
+
+    remoteSync.loadConfig();
+    if (remoteSync.getConfig()) {
+      remoteSync.loadSocketIoThenConnect();
+    }
 
     loadLocalInitiativeState();
     renderLocalInitiativeUi();
@@ -4564,6 +4689,258 @@
     PAGE.setTimeout(onDomMaybeChanged, 1500);
     PAGE.setTimeout(onDomMaybeChanged, 4500);
   }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     RemoteSyncAdapter — bridges initiative state to/from the relay server
+     ═══════════════════════════════════════════════════════════════════════ */
+  var remoteSync = (function () {
+    var CONFIG_KEY = 'ddbInitBarRemoteSyncV1';
+    var config = null;
+    var socket = null;
+    var statusEl = null;
+    var qrContainerEl = null;
+
+    function loadConfig() {
+      try {
+        var raw = PAGE.localStorage.getItem(CONFIG_KEY);
+        if (raw) config = JSON.parse(raw);
+      } catch (_) {}
+    }
+
+    function saveConfig() {
+      try {
+        PAGE.localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+      } catch (_) {}
+    }
+
+    function clearConfig() {
+      config = null;
+      try { PAGE.localStorage.removeItem(CONFIG_KEY); } catch (_) {}
+    }
+
+    function enable(serverUrl, userToken) {
+      var url = (serverUrl || '').replace(/\/+$/, '');
+      if (!url) { updateStatus('error', 'No server URL'); return; }
+      updateStatus('reconnecting', 'Creating session…');
+      GM_xmlhttpRequest({
+        method: 'POST',
+        url: url + '/api/sessions',
+        headers: { 'Content-Type': 'application/json' },
+        data: '{}',
+        onload: function (resp) {
+          try {
+            var d = JSON.parse(resp.responseText);
+            config = {
+              serverUrl: url,
+              sessionId: d.sessionId,
+              dmToken: d.dmToken,
+              displayToken: d.displayToken,
+              userToken: userToken || null,
+            };
+            saveConfig();
+            loadSocketIoThenConnect();
+          } catch (e) {
+            updateStatus('error', 'Session creation failed');
+          }
+        },
+        onerror: function () {
+          updateStatus('error', 'Network error — check server URL');
+        },
+      });
+    }
+
+    function loadSocketIoThenConnect() {
+      if (!config) return;
+      if (typeof io !== 'undefined') { connect(); return; }
+      var s = document.createElement('script');
+      s.src = config.serverUrl + '/socket.io/socket.io.js';
+      s.onload = function () { connect(); };
+      s.onerror = function () {
+        updateStatus('error', 'Could not load socket.io client');
+      };
+      document.head.appendChild(s);
+    }
+
+    function connect() {
+      if (!config) return;
+      if (socket) { socket.disconnect(); socket = null; }
+      updateStatus('reconnecting', 'Connecting…');
+      socket = io(config.serverUrl, { transports: ['websocket', 'polling'] });
+      socket.on('connect', function () {
+        socket.emit('session:subscribe', { sessionId: config.sessionId, token: config.dmToken });
+        socket.emit('session:enableRelay');
+        updateStatus('connected', 'Connected');
+        if (localInitState) pushState(localInitState);
+      });
+      socket.on('disconnect', function () {
+        updateStatus('reconnecting', 'Reconnecting…');
+      });
+      socket.on('error', function (p) {
+        updateStatus('error', (p && p.message) || 'Socket error');
+      });
+      socket.on('remote:command', function (cmd) {
+        if (!cmd || !cmd.type) return;
+        handleRemoteCommand(cmd);
+      });
+    }
+
+    function disconnect() {
+      if (socket) { socket.disconnect(); socket = null; }
+      clearConfig();
+      clearQr();
+      updateStatus('disconnected', 'Disconnected');
+    }
+
+    function pushState(initState) {
+      if (!socket || !socket.connected || !initState) return;
+      socket.emit('initiative:pushState', { state: mapToServerState(initState) });
+    }
+
+    function mapToServerState(ls) {
+      var entries = {};
+      var ids = ls.turnOrder || [];
+      for (var i = 0; i < ids.length; i++) {
+        var e = ls.entries[ids[i]];
+        if (!e) continue;
+        var conds = [];
+        if (e.conditions && e.conditions.length) {
+          for (var j = 0; j < e.conditions.length; j++) {
+            var c = e.conditions[j];
+            conds.push(typeof c === 'string' ? c : (c.name || String(c)));
+          }
+        }
+        entries[e.id] = {
+          id: e.id,
+          entityId: e.entityId || e.id,
+          label: e.label || 'Unknown',
+          initiativeTotal: e.initiativeTotal || 0,
+          rollMode: e.rollMode || 'normal',
+          mod: e.mod || 0,
+          dexMod: e.dexMod,
+          locked: !!e.locked,
+          delayed: !!e.delayed,
+          ready: !!e.ready,
+          groupId: e.groupId || undefined,
+          rollBreakdown: e.rollBreakdown || undefined,
+          avatarUrl: e.avatarUrl || undefined,
+          conditions: conds.length ? conds : undefined,
+          combatTags: e.combatTags || undefined,
+        };
+      }
+      return {
+        round: ls.round || 1,
+        currentTurnIndex: ls.currentTurnIndex || 0,
+        turnOrder: ids,
+        entries: entries,
+        markedEntryId: ls.markedEntryId || null,
+      };
+    }
+
+    function handleRemoteCommand(cmd) {
+      var t = cmd.type;
+      if (t === 'initiative:next') {
+        mutateLocalInitiative(localNextTurn);
+      } else if (t === 'initiative:prev') {
+        mutateLocalInitiative(localPrevTurn);
+      } else if (t === 'initiative:nextRound') {
+        mutateLocalInitiative(nextRound);
+      } else if (t === 'initiative:startCombat') {
+        startCombat();
+      } else if (t === 'initiative:clear') {
+        localInitState = emptyLocalInitiativeState();
+        saveLocalInitiativeState();
+        renderLocalInitiativeUi();
+        pushState(localInitState);
+      } else if (t === 'initiative:rerollAll') {
+        mutateLocalInitiative(function (s) {
+          s = rollAllInitiative(s);
+          s = sortInitiative(s);
+          return Object.assign({}, s, { currentTurnIndex: 0, markedEntryId: null });
+        });
+      } else if (t === 'initiative:markEntry') {
+        var args = cmd.args || {};
+        mutateLocalInitiative(function (s) {
+          return Object.assign({}, s, { markedEntryId: args.entryId || null });
+        });
+      } else if (t === 'initiative:setCombatTags' && cmd.args) {
+        var eid = cmd.args.entryId;
+        var tags = cmd.args.combatTags;
+        if (eid && Array.isArray(tags)) {
+          mutateLocalInitiative(function (s) {
+            var e = s.entries[eid];
+            if (!e) return s;
+            var entries = Object.assign({}, s.entries);
+            entries[eid] = Object.assign({}, e, { combatTags: tags.length ? tags : undefined });
+            return Object.assign({}, s, { entries: entries });
+          });
+        }
+      }
+    }
+
+    function getRemoteUrl() {
+      if (!config) return null;
+      return config.serverUrl + '/dm-remote?s=' +
+        encodeURIComponent(config.sessionId) + '&t=' +
+        encodeURIComponent(config.dmToken);
+    }
+
+    function renderQrCode() {
+      var url = getRemoteUrl();
+      if (!url || !qrContainerEl) return;
+      qrContainerEl.innerHTML = '';
+      try {
+        var qr = qrcode(0, 'M');
+        qr.addData(url);
+        qr.make();
+        var img = qr.createImgTag(4, 8);
+        qrContainerEl.innerHTML = img;
+        var imgEl = qrContainerEl.querySelector('img');
+        if (imgEl) {
+          imgEl.style.borderRadius = '8px';
+          imgEl.style.maxWidth = '200px';
+        }
+      } catch (e) {
+        qrContainerEl.textContent = 'QR failed: ' + e.message;
+      }
+    }
+
+    function clearQr() {
+      if (qrContainerEl) qrContainerEl.innerHTML = '';
+    }
+
+    function updateStatus(state, text) {
+      if (!statusEl) return;
+      var colors = {
+        connected: '#22c55e', reconnecting: '#f59e0b',
+        error: '#ef4444', disconnected: '#6b7280',
+      };
+      statusEl.textContent = text;
+      statusEl.style.color = colors[state] || '#6b7280';
+    }
+
+    function isConnected() {
+      return socket && socket.connected;
+    }
+
+    function setUiRefs(status, qrContainer) {
+      statusEl = status;
+      qrContainerEl = qrContainer;
+    }
+
+    return {
+      enable: enable,
+      disconnect: disconnect,
+      pushState: pushState,
+      loadConfig: loadConfig,
+      isConnected: isConnected,
+      getRemoteUrl: getRemoteUrl,
+      renderQrCode: renderQrCode,
+      connect: connect,
+      loadSocketIoThenConnect: loadSocketIoThenConnect,
+      setUiRefs: setUiRefs,
+      getConfig: function () { return config; },
+    };
+  })();
 
   installNavHooksOnce();
   syncBarToRoute();
