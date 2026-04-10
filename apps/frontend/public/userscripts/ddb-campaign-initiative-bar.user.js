@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         DDB Campaign — left initiative bar (local)
 // @namespace    https://github.com/your-org/ddb-dm-screen
-// @version      1.6.5
-// @description  Fullscreen DM overlay on /campaigns/*: Start Combat / Next Round initiative flow; Adv/Dis prompt — Yes re-rolls now, No saves mode for next round; ▶ after last revealed turn runs next round; conditions; death-save pips. Party click-to-turn. Wiki: https://github.com/TeaWithLucas/DNDBeyond-DM-Screen/wiki/Module-output — legacy → v5 → v4. Cobalt 999080.
+// @version      1.6.7
+// @description  Fullscreen DM overlay on /campaigns/*: Start Combat / Next Round; sheet conditions + death saves from DDB/module JSON (legacy+v5 merge, modifiers); tracker conditions; Adv/Dis prompt; ▶ → next round when full reveal. Wiki: https://github.com/TeaWithLucas/DNDBeyond-DM-Screen/wiki/Module-output — legacy+v5 merge → v4. Cobalt 999080.
 // @match        https://www.dndbeyond.com/*
 // @match        https://www.dndbeyond.com/
 // @match        https://dndbeyond.com/*
@@ -570,10 +570,14 @@
         return null;
       }
     }
-    /** Legacy + v5 first — matches party ingest; v4 GET often returns 400 for many sheets (noisy + useless). */
-    let u = await tryGet(LEGACY_PLURAL + charId + '/json?_ts=' + ts, true);
-    if (!u) u = await tryGet(LEGACY + charId + '/json?_ts=' + ts, true);
-    if (!u) u = await tryGet(V5_CHAR_BASE + charId + '?_ts=' + ts, false);
+    /** Parallel legacy + v5, then merge (party ingest parity) — sequential legacy-only hid live conditions / death saves on v5. */
+    const [legPlural, legSingular, svc] = await Promise.all([
+      tryGet(LEGACY_PLURAL + charId + '/json?_ts=' + ts, true),
+      tryGet(LEGACY + charId + '/json?_ts=' + ts, true),
+      tryGet(V5_CHAR_BASE + charId + '?_ts=' + ts, false),
+    ]);
+    const leg = legPlural || legSingular;
+    let u = leg && svc ? mergeDdbLegacyAndV5Character(leg, svc) : leg || svc;
     if (!u) u = await tryGet(V4_CHAR_BASE + charId + '?_ts=' + ts, false);
     return u;
   }
@@ -713,6 +717,22 @@
         classEl.textContent = 'Loading…';
       }
       titleBlock.appendChild(nameEl);
+      if (c) {
+        const sheetCondLabs = extractDdbConditionLabels(c);
+        if (sheetCondLabs.length) {
+          const inlineCond = document.createElement('div');
+          inlineCond.className = 'dib-pc-inline-conds';
+          for (let sci = 0; sci < sheetCondLabs.length; sci++) {
+            const pill = document.createElement('span');
+            pill.className = 'dib-pc-inline-cond-pill';
+            const full = sheetCondLabs[sci];
+            pill.title = full;
+            pill.textContent = '[' + abbrevConditionLabel(full) + ']';
+            inlineCond.appendChild(pill);
+          }
+          titleBlock.appendChild(inlineCond);
+        }
+      }
       titleBlock.appendChild(raceEl);
       titleBlock.appendChild(classEl);
       hdr.appendChild(avWrap);
@@ -819,28 +839,6 @@
         ph.className = 'dib-pc-stack-empty';
         ph.textContent = '…';
         stack.appendChild(ph);
-      }
-
-      if (c) {
-        const conds = conditionLabelsForCard(c);
-        if (conds.length) {
-          const sec3 = document.createElement('div');
-          sec3.className = 'dib-pc-conditions-block';
-          const st3 = document.createElement('div');
-          st3.className = 'dib-pc-section-title dib-pc-section-title--small';
-          st3.textContent = 'Conditions';
-          sec3.appendChild(st3);
-          const cpills = document.createElement('div');
-          cpills.className = 'dib-pc-pills';
-          for (let ci = 0; ci < conds.length; ci++) {
-            const pill = document.createElement('span');
-            pill.className = 'dib-pc-pill';
-            pill.textContent = conds[ci];
-            cpills.appendChild(pill);
-          }
-          sec3.appendChild(cpills);
-          stack.appendChild(sec3);
-        }
       }
 
       card.appendChild(stack);
@@ -1579,21 +1577,360 @@
     return list.slice(0, 12);
   }
 
-  function conditionLabelsForCard(c) {
-    const arr = c.conditions;
-    if (!Array.isArray(arr)) return [];
-    const out = [];
-    for (let i = 0; i < arr.length; i++) {
-      const x = arr[i];
-      if (!x || typeof x !== 'object') continue;
-      const n =
-        (typeof x.name === 'string' && x.name.trim()) ||
-        (x.definition && typeof x.definition.name === 'string' && x.definition.name.trim()) ||
-        '';
-      if (n) out.push(n);
-      if (out.length >= 10) break;
+  /** PHB standard condition definition ids (legacy /json rows often omit `name`). */
+  const DDB_STD_CONDITION_ID_TO_LABEL = {
+    1: 'Blinded',
+    2: 'Charmed',
+    3: 'Deafened',
+    4: 'Exhaustion',
+    5: 'Frightened',
+    6: 'Grappled',
+    7: 'Incapacitated',
+    8: 'Invisible',
+    9: 'Paralyzed',
+    10: 'Petrified',
+    11: 'Poisoned',
+    12: 'Prone',
+    13: 'Restrained',
+    14: 'Stunned',
+    15: 'Unconscious',
+  };
+
+  const DDB_CONDITION_PLACEHOLDER_LOWER = new Set([
+    'add active conditions',
+    'manage conditions',
+    'no active conditions',
+    'no conditions',
+    'actions',
+    'proficiencies & training',
+    'inventory',
+    'features & traits',
+    'extras',
+    'spells',
+    '0',
+    '+0',
+  ]);
+
+  function isDdbConditionPlaceholderLabel(s) {
+    const t = String(s || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+    if (!t) return true;
+    if (DDB_CONDITION_PLACEHOLDER_LOWER.has(t)) return true;
+    if (t.startsWith('add ') && t.includes('condition')) return true;
+    if (t.includes('add active conditions')) return true;
+    return false;
+  }
+
+  function tryStdCondDefId(v) {
+    if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+    return DDB_STD_CONDITION_ID_TO_LABEL[v] != null ? v : null;
+  }
+
+  function resolveStdConditionDefIdFromObject(o) {
+    if (!o || typeof o !== 'object') return null;
+    const keys = ['definitionId', 'conditionDefinitionId', 'standardConditionDefinitionId'];
+    for (let i = 0; i < keys.length; i++) {
+      const t = tryStdCondDefId(o[keys[i]]);
+      if (t != null) return t;
     }
+    const def = o.definition;
+    if (def && typeof def === 'object' && !Array.isArray(def)) {
+      const d = def;
+      const dk = tryStdCondDefId(d.id);
+      if (dk != null) return dk;
+      const dd = tryStdCondDefId(d.definitionId);
+      if (dd != null) return dd;
+    }
+    return tryStdCondDefId(o.id);
+  }
+
+  function labelFromStdConditionRef(o) {
+    const defId = resolveStdConditionDefIdFromObject(o);
+    if (defId == null) return null;
+    const base = DDB_STD_CONDITION_ID_TO_LABEL[defId];
+    if (!base) return null;
+    if (base === 'Exhaustion') {
+      const lv = o.level;
+      if (typeof lv === 'number' && lv >= 1 && lv <= 6) return 'Exhaustion ' + lv;
+      return 'Exhaustion';
+    }
+    return base;
+  }
+
+  function isLikelySpellSlotLeakConditionRow(o) {
+    if (!o || typeof o !== 'object') return false;
+    if (typeof o.name === 'string' && o.name.trim()) return false;
+    if (typeof o.label === 'string' && o.label.trim()) return false;
+    const def = o.definition;
+    if (def && typeof def === 'object' && typeof def.name === 'string' && def.name.trim()) return false;
+    if (typeof o.id !== 'number' || !Number.isFinite(o.id)) return false;
+    if (DDB_STD_CONDITION_ID_TO_LABEL[o.id]) return false;
+    const lv = o.level;
+    if (lv !== null && lv !== undefined && typeof lv !== 'number') return false;
+    return true;
+  }
+
+  function ddbConditionEntryToLabel(x) {
+    if (typeof x === 'string') {
+      const t = x.trim();
+      return t || '';
+    }
+    if (!x || typeof x !== 'object') return '';
+    const o = x;
+    if (typeof o.name === 'string' && o.name.trim()) return o.name.trim();
+    if (typeof o.label === 'string' && o.label.trim()) return o.label.trim();
+    const def = o.definition;
+    if (def && typeof def === 'object' && typeof def.name === 'string' && def.name.trim()) return def.name.trim();
+    const fromStd = labelFromStdConditionRef(o);
+    if (fromStd) return fromStd;
+    if (isLikelySpellSlotLeakConditionRow(o)) return '';
+    try {
+      return JSON.stringify(x);
+    } catch (_) {
+      return String(x);
+    }
+  }
+
+  function __cloneJsonValueUsr(v) {
+    if (v === null || typeof v !== 'object') return v;
+    try {
+      if (typeof structuredClone === 'function') return structuredClone(v);
+    } catch (_) {}
+    try {
+      return JSON.parse(JSON.stringify(v));
+    } catch (__) {
+      return v;
+    }
+  }
+
+  function __conditionRowDedupeKeyUsr(row) {
+    if (!row || typeof row !== 'object') return '';
+    const id = Number(row.id ?? row.conditionId ?? row.conditionDefinitionId ?? row.definitionId);
+    if (Number.isFinite(id) && id > 0) return 'id:' + id;
+    const lb = ddbConditionEntryToLabel(row);
+    if (lb && typeof lb === 'string') {
+      const t = lb.trim().toLowerCase();
+      if (t && t.length < 400) return 'lb:' + t;
+    }
+    return '';
+  }
+
+  function __mergeConditionLikeArraysUsr(a, b) {
+    const A = Array.isArray(a) ? a : [];
+    const B = Array.isArray(b) ? b : [];
+    if (!B.length) return __cloneJsonValueUsr(A);
+    if (!A.length) return __cloneJsonValueUsr(B);
+    const seen = new Set();
+    const out = [];
+    function pushArr(arr) {
+      for (let i = 0; i < arr.length; i++) {
+        const row = arr[i];
+        const k = __conditionRowDedupeKeyUsr(row);
+        if (k) {
+          if (seen.has(k)) continue;
+          seen.add(k);
+        }
+        out.push(__cloneJsonValueUsr(row));
+      }
+    }
+    pushArr(A);
+    pushArr(B);
     return out;
+  }
+
+  function __modifierRowDedupeKeyUsr(m) {
+    if (!m || typeof m !== 'object') return '';
+    const id = Number(m.id ?? m.modifierId ?? m.entityId);
+    if (Number.isFinite(id) && id > 0) return 'id:' + id;
+    try {
+      return 'j:' + JSON.stringify(m);
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /**
+   * Richer legacy `/json` as base, overlay character-service v5; union `conditions` / `activeConditions` / `modifiers` buckets
+   * so slim v5 + full legacy (or split condition sources) do not drop rows.
+   */
+  function mergeDdbLegacyAndV5Character(legacy, live) {
+    if (!legacy || typeof legacy !== 'object') return live ? __cloneJsonValueUsr(live) : legacy;
+    if (!live || typeof live !== 'object') return __cloneJsonValueUsr(legacy);
+    const target = __cloneJsonValueUsr(legacy);
+    const keys = Object.keys(live);
+    for (let ki = 0; ki < keys.length; ki++) {
+      const key = keys[ki];
+      const lv = live[key];
+      if (lv === undefined) continue;
+      if (key === 'conditions') {
+        target.conditions = __mergeConditionLikeArraysUsr(target.conditions, lv);
+        continue;
+      }
+      if (key === 'activeConditions') {
+        target.activeConditions = __mergeConditionLikeArraysUsr(target.activeConditions, lv);
+        continue;
+      }
+      if (key === 'hitPointInfo' && lv && typeof lv === 'object' && !Array.isArray(lv)) {
+        const prev = target.hitPointInfo && typeof target.hitPointInfo === 'object' ? target.hitPointInfo : {};
+        target.hitPointInfo = Object.assign({}, __cloneJsonValueUsr(prev), __cloneJsonValueUsr(lv));
+        continue;
+      }
+      if (key === 'deathSaveInfo' && lv && typeof lv === 'object' && !Array.isArray(lv)) {
+        const prev = target.deathSaveInfo && typeof target.deathSaveInfo === 'object' ? target.deathSaveInfo : {};
+        target.deathSaveInfo = Object.assign({}, __cloneJsonValueUsr(prev), __cloneJsonValueUsr(lv));
+        continue;
+      }
+      if (key === 'modifiers' && lv && typeof lv === 'object' && !Array.isArray(lv)) {
+        const prev = target.modifiers && typeof target.modifiers === 'object' ? target.modifiers : {};
+        const mergedMods = Object.assign({}, __cloneJsonValueUsr(prev));
+        const bk = Object.keys(lv);
+        for (let mj = 0; mj < bk.length; mj++) {
+          const bucketKey = bk[mj];
+          const liveBucket = lv[bucketKey];
+          const prevBucket = mergedMods[bucketKey];
+          if (Array.isArray(liveBucket) && Array.isArray(prevBucket)) {
+            const seen = new Set();
+            const out = [];
+            function pushBucket(arr) {
+              for (let i = 0; i < arr.length; i++) {
+                const m = arr[i];
+                const dk = __modifierRowDedupeKeyUsr(m);
+                if (dk) {
+                  if (seen.has(dk)) continue;
+                  seen.add(dk);
+                }
+                out.push(__cloneJsonValueUsr(m));
+              }
+            }
+            pushBucket(prevBucket);
+            pushBucket(liveBucket);
+            mergedMods[bucketKey] = out;
+          } else {
+            mergedMods[bucketKey] = __cloneJsonValueUsr(liveBucket);
+          }
+        }
+        target.modifiers = mergedMods;
+        continue;
+      }
+      if (lv === null) {
+        target[key] = null;
+        continue;
+      }
+      if (Array.isArray(lv)) {
+        target[key] = __cloneJsonValueUsr(lv);
+        continue;
+      }
+      if (typeof lv === 'object') {
+        const tv = target[key];
+        if (tv !== null && typeof tv === 'object' && !Array.isArray(tv)) {
+          target[key] = Object.assign({}, __cloneJsonValueUsr(tv), __cloneJsonValueUsr(lv));
+        } else {
+          target[key] = __cloneJsonValueUsr(lv);
+        }
+        continue;
+      }
+      target[key] = lv;
+    }
+    return target;
+  }
+
+  function isLikelyStdConditionCatalogLeak(arr) {
+    if (!Array.isArray(arr) || arr.length < 8) return false;
+    const ids = [];
+    for (let i = 0; i < arr.length; i++) {
+      const id = resolveStdConditionDefIdFromObject(arr[i]);
+      if (id == null) return false;
+      ids.push(id);
+    }
+    const sorted = ids.slice().sort((a, b) => a - b);
+    if (sorted.length !== arr.length) return false;
+    for (let j = 0; j < sorted.length; j++) {
+      if (sorted[j] !== j + 1) return false;
+    }
+    return true;
+  }
+
+  function expandGluedConditionTokens(label) {
+    const s = String(label || '').trim();
+    if (!s || s.indexOf(' ') !== -1 || s.indexOf(',') !== -1) return [s];
+    const parts = s.match(/[A-Z][a-z]+/g);
+    if (!parts || parts.length < 2) return [s];
+    const known = new Set([
+      'blinded',
+      'charmed',
+      'deafened',
+      'exhaustion',
+      'frightened',
+      'grappled',
+      'incapacitated',
+      'invisible',
+      'paralyzed',
+      'petrified',
+      'poisoned',
+      'prone',
+      'restrained',
+      'stunned',
+      'unconscious',
+    ]);
+    const lower = parts.map((p) => p.toLowerCase());
+    if (!lower.every((w) => known.has(w))) return [s];
+    return parts;
+  }
+
+  /**
+   * Active conditions from DDB character JSON / TeaWithLucas module output (`conditions`, `activeConditions`).
+   * @see https://github.com/TeaWithLucas/DNDBeyond-DM-Screen/wiki/Module-output
+   */
+  function extractDdbConditionLabels(c) {
+    if (!c || typeof c !== 'object') return [];
+    const r = c;
+    const labels = new Set();
+    const maxLabels = 24;
+    function consume(arr) {
+      if (!Array.isArray(arr)) return;
+      if (isLikelyStdConditionCatalogLeak(arr)) return;
+      for (let i = 0; i < arr.length; i++) {
+        const lb = ddbConditionEntryToLabel(arr[i]);
+        if (!lb || isDdbConditionPlaceholderLabel(lb)) continue;
+        const pieces = expandGluedConditionTokens(lb);
+        for (let p = 0; p < pieces.length; p++) {
+          const piece = pieces[p];
+          if (piece && !isDdbConditionPlaceholderLabel(piece)) labels.add(piece);
+        }
+        if (labels.size >= maxLabels) return;
+      }
+    }
+    function consumeModifiers(modRoot) {
+      if (!modRoot || typeof modRoot !== 'object' || Array.isArray(modRoot)) return;
+      const mkeys = Object.keys(modRoot);
+      for (let ki = 0; ki < mkeys.length; ki++) {
+        const arr = modRoot[mkeys[ki]];
+        if (!Array.isArray(arr)) continue;
+        for (let i = 0; i < arr.length; i++) {
+          const m = arr[i];
+          if (!m || typeof m !== 'object') continue;
+          if (m.type !== 'condition') continue;
+          const n = String(m.friendlySubtypeName || m.subType || m.name || '').trim();
+          if (!n || isDdbConditionPlaceholderLabel(n)) continue;
+          const pieces = expandGluedConditionTokens(n);
+          for (let p = 0; p < pieces.length; p++) {
+            const piece = pieces[p];
+            if (piece && !isDdbConditionPlaceholderLabel(piece)) labels.add(piece);
+          }
+          if (labels.size >= maxLabels) return;
+        }
+      }
+    }
+    consume(r.conditions);
+    consume(r.activeConditions);
+    consumeModifiers(r.modifiers);
+    return Array.from(labels).slice(0, maxLabels);
+  }
+
+  function conditionLabelsForCard(c) {
+    return extractDdbConditionLabels(c);
   }
 
   function hpBoxParts(c) {
@@ -1640,7 +1977,53 @@
     return Math.min(3, x);
   }
 
-  /** DDB shapes vary: read success/fail counts from hitPointInfo or deathSaves blobs. */
+  function countDeathSaveBoolArray(arr) {
+    if (!Array.isArray(arr)) return null;
+    let n = 0;
+    for (let i = 0; i < arr.length; i++) {
+      const x = arr[i];
+      if (x === true || x === 1) n++;
+    }
+    return n;
+  }
+
+  function pickDeathSaveCountsFromObject(ds) {
+    if (!ds || typeof ds !== 'object') return { s: null, f: null };
+    let s =
+      ds.successCount ??
+      ds.successes ??
+      ds.success ??
+      ds.saveSuccesses ??
+      ds.deathSavesSuccessCount ??
+      ds.deathSaveSuccessCount;
+    let f =
+      ds.failureCount ??
+      ds.failures ??
+      ds.fail ??
+      ds.fails ??
+      ds.saveFailures ??
+      ds.deathSavesFailCount ??
+      ds.deathSaveFailCount;
+    if (Array.isArray(s)) {
+      const c = countDeathSaveBoolArray(s);
+      s = c != null ? c : null;
+    }
+    if (Array.isArray(f)) {
+      const c = countDeathSaveBoolArray(f);
+      f = c != null ? c : null;
+    }
+    if (s == null || s === '') {
+      const c2 = countDeathSaveBoolArray(ds.deathSaveSuccesses);
+      if (c2 != null) s = c2;
+    }
+    if (f == null || f === '') {
+      const c3 = countDeathSaveBoolArray(ds.deathSaveFailures);
+      if (c3 != null) f = c3;
+    }
+    return { s: s, f: f };
+  }
+
+  /** DDB + TeaWithLucas module: hitPointInfo, deathSaveInfo, top-level successes/fails. @see Module-output wiki */
   function deathSavesFromCharacter(c) {
     const empty = { successes: 0, failures: 0 };
     if (!c || typeof c !== 'object') return empty;
@@ -1662,25 +2045,64 @@
         hpi.failureCount ??
         hpi.failures ??
         hpi.fail;
+      if (Array.isArray(s)) {
+        const c = countDeathSaveBoolArray(s);
+        s = c != null ? c : null;
+      }
+      if (Array.isArray(f)) {
+        const c = countDeathSaveBoolArray(f);
+        f = c != null ? c : null;
+      }
+      if ((s == null || s === '') && (f == null || f === '') && hpi.deathSaveInfo && typeof hpi.deathSaveInfo === 'object') {
+        const inner = pickDeathSaveCountsFromObject(hpi.deathSaveInfo);
+        s = inner.s;
+        f = inner.f;
+      }
+      if (s == null || s === '') {
+        const bs = countDeathSaveBoolArray(hpi.deathSaveSuccesses);
+        if (bs != null) s = bs;
+      }
+      if (f == null || f === '') {
+        const bf = countDeathSaveBoolArray(hpi.deathSaveFailures);
+        if (bf != null) f = bf;
+      }
     }
     if ((s == null || s === '') && (f == null || f === '')) {
-      const ds = c.deathSaves ?? c.deathSaveInfo ?? c.deathSave;
-      if (ds && typeof ds === 'object') {
-        if (s == null || s === '')
-          s =
-            ds.successCount ??
-            ds.successes ??
-            ds.success ??
-            ds.saveSuccesses ??
-            ds.deathSavesSuccessCount;
-        if (f == null || f === '')
-          f =
-            ds.failureCount ??
-            ds.failures ??
-            ds.fail ??
-            ds.saveFailures ??
-            ds.deathSavesFailCount;
+      const topDsi = c.deathSaveInfo;
+      if (topDsi && typeof topDsi === 'object') {
+        const inner = pickDeathSaveCountsFromObject(topDsi);
+        if (s == null || s === '') s = inner.s;
+        if (f == null || f === '') f = inner.f;
       }
+    }
+    if ((s == null || s === '') && (f == null || f === '')) {
+      const ds = c.deathSaves ?? c.deathSave;
+      if (ds && typeof ds === 'object') {
+        const inner = pickDeathSaveCountsFromObject(ds);
+        if (s == null || s === '') s = inner.s;
+        if (f == null || f === '') f = inner.f;
+      }
+    }
+    if (s == null || s === '') {
+      const sv = c.successes;
+      if (typeof sv === 'number' && Number.isFinite(sv)) s = sv;
+      else if (Array.isArray(sv)) {
+        const c0 = countDeathSaveBoolArray(sv);
+        if (c0 != null) s = c0;
+      }
+    }
+    if (f == null || f === '') {
+      const fv = c.fails;
+      if (typeof fv === 'number' && Number.isFinite(fv)) f = fv;
+      else if (Array.isArray(fv)) {
+        const c1 = countDeathSaveBoolArray(fv);
+        if (c1 != null) f = c1;
+      }
+    }
+    if ((s == null || s === '') && (f == null || f === '')) {
+      const cTop = pickDeathSaveCountsFromObject(c);
+      if (s == null || s === '') s = cTop.s;
+      if (f == null || f === '') f = cTop.f;
     }
     return {
       successes: clampDeathSaveSlot(s),
@@ -2341,9 +2763,29 @@
       openConditionEditor(eid);
     });
 
+    const nameRow = document.createElement('div');
+    nameRow.className = 'dib-init-name-row';
     const nameEl = document.createElement('div');
     nameEl.className = 'dib-init-name';
     nameEl.textContent = e.label;
+    nameRow.appendChild(nameEl);
+    const partyC = e.entityId != null && e.entityId !== '' ? partyById[String(e.entityId)] : null;
+    const sheetCondLabs = partyC ? extractDdbConditionLabels(partyC) : [];
+    const trackerAbbrevs = new Set(
+      (Array.isArray(e.conditions) ? e.conditions : []).map(function (tc) {
+        return abbrevConditionLabel(tc && tc.name);
+      }),
+    );
+    for (let sxi = 0; sxi < sheetCondLabs.length; sxi++) {
+      const slab = sheetCondLabs[sxi];
+      const sab = abbrevConditionLabel(slab);
+      if (trackerAbbrevs.has(sab)) continue;
+      const sp = document.createElement('span');
+      sp.className = 'dib-init-cond-pill dib-init-cond-pill--ddb';
+      sp.textContent = '[' + sab + ']';
+      sp.title = slab + ' (from sheet)';
+      nameRow.appendChild(sp);
+    }
 
     const condBar = document.createElement('div');
     condBar.className = 'dib-init-conds';
@@ -2392,7 +2834,7 @@
       tieLine.textContent = '\u00a0';
     }
 
-    body.appendChild(nameEl);
+    body.appendChild(nameRow);
     body.appendChild(condBar);
     body.appendChild(rollLine);
     body.appendChild(tieLine);
@@ -2829,14 +3271,36 @@
         flex: 1;
         min-width: 0;
       }
+      .dib-init-name-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 5px 8px;
+        margin-bottom: 3px;
+      }
       .dib-init-name {
         font-weight: 700;
         font-size: 14px;
         color: #f8fafc;
         letter-spacing: 0.02em;
         line-height: 1.25;
-        margin-bottom: 3px;
+        margin-bottom: 0;
         word-break: break-word;
+        flex: 0 1 auto;
+        min-width: 0;
+      }
+      .dib-init-cond-pill--ddb {
+        flex: 0 0 auto;
+        cursor: default;
+        font-size: 8px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        padding: 2px 5px;
+        border-radius: 4px;
+        background: rgba(125,211,252,.12);
+        border: 1px solid rgba(56,189,248,.35);
+        color: #7dd3fc;
+        line-height: 1.2;
       }
       .dib-init-body--click { cursor: pointer; }
       .dib-init-conds {
@@ -3102,6 +3566,23 @@
         word-break: break-word;
         text-shadow: 0 1px 2px rgba(0,0,0,.4);
       }
+      .dib-pc-inline-conds {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 5px;
+        margin-top: 5px;
+        margin-bottom: 2px;
+      }
+      .dib-pc-inline-cond-pill {
+        font-size: 8px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        padding: 2px 5px;
+        border-radius: 999px;
+        background: rgba(61,214,199,.12);
+        border: 1px solid rgba(61,214,199,.35);
+        color: var(--pc-teal);
+      }
       .dib-pc-race {
         font-size: 10px;
         font-style: italic;
@@ -3333,7 +3814,6 @@
         color: #f5f5f4;
         font-variant-numeric: tabular-nums;
       }
-      .dib-pc-conditions-block { margin-top: 10px; }
       .dib-pc-slots-compact-wrap { width: 100%; }
       .dib-pc-slots-compact {
         display: flex;
