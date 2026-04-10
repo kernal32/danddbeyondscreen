@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         DDB Campaign — left initiative bar (local)
 // @namespace    https://github.com/your-org/ddb-dm-screen
-// @version      1.6.7
-// @description  Fullscreen DM overlay on /campaigns/*: Start Combat / Next Round; sheet conditions + death saves from DDB/module JSON (legacy+v5 merge, modifiers); tracker conditions; Adv/Dis prompt; ▶ → next round when full reveal. Wiki: https://github.com/TeaWithLucas/DNDBeyond-DM-Screen/wiki/Module-output — legacy+v5 merge → v4. Cobalt 999080.
+// @version      1.6.9
+// @description  Fullscreen DM overlay on /campaigns/*: Start Combat / Next Round; settings panel (colour theme × 4 + card density, localStorage); passives match stat-badge font size; conditions + death saves (legacy+v5 merge). Wiki: https://github.com/TeaWithLucas/DNDBeyond-DM-Screen/wiki/Module-output — legacy+v5 merge → v4. Cobalt 999080.
 // @match        https://www.dndbeyond.com/*
 // @match        https://www.dndbeyond.com/
 // @match        https://dndbeyond.com/*
@@ -29,6 +29,7 @@
 
   const POLL_MS = 60000;
   const INIT_STORAGE_KEY = 'ddbCampaignInitBarInitiativeV1';
+  const SETTINGS_STORAGE_KEY = 'ddbInitBarSettingsV1';
   /** Same id as ddb-party-ingest / ootz0rz — do not change arbitrarily. */
   const INGEST_AUTH_MODULE_ID = 999080;
   const LEGACY = 'https://www.dndbeyond.com/character/';
@@ -64,6 +65,173 @@
   };
   let condEditorEntryId = null;
   let restoreFab = null;
+  let barSettings = null; // populated by loadBarSettings() once helpers are defined below
+  let settingsPanelEl = null;
+
+  const BAR_THEMES = {
+    crimson: {
+      name: 'Crimson',
+      swatch: '#b91c1c',
+      vars: {
+        '--dib-red': '#b91c1c',
+        '--dib-red-hot': '#ef4444',
+        '--dib-black': '#050506',
+        '--dib-surface': '#0e0e10',
+        '--dib-surface2': '#16161a',
+        '--dib-border': '#2a2a30',
+        '--dib-pc-gold': '#c9a962',
+        '--dib-pc-gold-dim': '#8a7a4a',
+        '--dib-pc-teal': '#3dd6c7',
+        '--dib-pc-teal-dim': '#1a9e8c',
+        '--dib-pc-panel': '#1a1614',
+        '--dib-pc-bg-start': '#1c1816',
+        '--dib-pc-bg-mid': '#12100e',
+        '--dib-pc-bg-end': '#0e0c0b',
+      },
+    },
+    arcane: {
+      name: 'Arcane',
+      swatch: '#3b82f6',
+      vars: {
+        '--dib-red': '#1d4ed8',
+        '--dib-red-hot': '#3b82f6',
+        '--dib-black': '#04040a',
+        '--dib-surface': '#080c14',
+        '--dib-surface2': '#0f1522',
+        '--dib-border': '#1e2a40',
+        '--dib-pc-gold': '#7dd3fc',
+        '--dib-pc-gold-dim': '#3b6ea8',
+        '--dib-pc-teal': '#a78bfa',
+        '--dib-pc-teal-dim': '#6d51c2',
+        '--dib-pc-panel': '#0a0f1c',
+        '--dib-pc-bg-start': '#0d1220',
+        '--dib-pc-bg-mid': '#080e18',
+        '--dib-pc-bg-end': '#050a12',
+      },
+    },
+    forest: {
+      name: 'Forest',
+      swatch: '#22c55e',
+      vars: {
+        '--dib-red': '#15803d',
+        '--dib-red-hot': '#22c55e',
+        '--dib-black': '#030804',
+        '--dib-surface': '#060e07',
+        '--dib-surface2': '#0b170c',
+        '--dib-border': '#1a2e1c',
+        '--dib-pc-gold': '#86efac',
+        '--dib-pc-gold-dim': '#3d8b5a',
+        '--dib-pc-teal': '#fbbf24',
+        '--dib-pc-teal-dim': '#b45309',
+        '--dib-pc-panel': '#081009',
+        '--dib-pc-bg-start': '#0c160d',
+        '--dib-pc-bg-mid': '#080e09',
+        '--dib-pc-bg-end': '#060a07',
+      },
+    },
+    parchment: {
+      name: 'Parchment',
+      swatch: '#d97706',
+      vars: {
+        '--dib-red': '#92400e',
+        '--dib-red-hot': '#d97706',
+        '--dib-black': '#faf7f0',
+        '--dib-surface': '#f5f0e8',
+        '--dib-surface2': '#ede8de',
+        '--dib-border': '#d6cfc0',
+        '--dib-pc-gold': '#92400e',
+        '--dib-pc-gold-dim': '#b45309',
+        '--dib-pc-teal': '#1d4ed8',
+        '--dib-pc-teal-dim': '#1e40af',
+        '--dib-pc-panel': '#ede8de',
+        '--dib-pc-bg-start': '#f0ebe2',
+        '--dib-pc-bg-mid': '#e8e2d8',
+        '--dib-pc-bg-end': '#e0d8cc',
+      },
+    },
+  };
+
+  function defaultBarSettings() {
+    return { theme: 'crimson', density: 'comfortable' };
+  }
+
+  function loadBarSettings() {
+    try {
+      const raw = PAGE.localStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          return Object.assign({}, defaultBarSettings(), parsed);
+        }
+      }
+    } catch (_) {}
+    return defaultBarSettings();
+  }
+
+  function saveBarSettings() {
+    try {
+      PAGE.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(barSettings));
+    } catch (_) {}
+  }
+
+  function applyBarSettings(settings, wrapEl) {
+    if (!wrapEl || !settings) return;
+    const theme = BAR_THEMES[settings.theme] || BAR_THEMES.crimson;
+    const vars = theme.vars;
+    const k = Object.keys(vars);
+    for (let i = 0; i < k.length; i++) {
+      wrapEl.style.setProperty(k[i], vars[k[i]]);
+    }
+    /** Density: override CSS custom properties for card sizing. */
+    if (settings.density === 'compact') {
+      wrapEl.style.setProperty('--dib-card-padding', '7px');
+      wrapEl.style.setProperty('--dib-avatar-size', '40px');
+      wrapEl.style.setProperty('--dib-stat-badge-size', '40px');
+      wrapEl.style.setProperty('--dib-stat-val-size', 'clamp(14px,3.5vw,18px)');
+    } else {
+      wrapEl.style.setProperty('--dib-card-padding', '10px');
+      wrapEl.style.setProperty('--dib-avatar-size', '52px');
+      wrapEl.style.setProperty('--dib-stat-badge-size', '52px');
+      wrapEl.style.setProperty('--dib-stat-val-size', 'clamp(17px,4.2vw,22px)');
+    }
+    /** Parchment needs light text on dark surfaces flipped — override body text colour. */
+    if (settings.theme === 'parchment') {
+      wrapEl.style.setProperty('--dib-text', '#1c1410');
+      wrapEl.style.setProperty('--dib-muted', '#78716c');
+    } else {
+      wrapEl.style.setProperty('--dib-text', '#e7e5e4');
+      wrapEl.style.setProperty('--dib-muted', '#a8a29e');
+    }
+    /** Refresh settings panel active states if open. */
+    refreshSettingsPanelActiveStates(settings);
+  }
+
+  /** Seed barSettings as early as possible so click handlers can reference it before the overlay builds. */
+  barSettings = loadBarSettings();
+
+  function refreshSettingsPanelActiveStates(settings) {
+    if (!settingsPanelEl) return;
+    const swatches = settingsPanelEl.querySelectorAll('[data-dib-theme]');
+    for (let i = 0; i < swatches.length; i++) {
+      const el = swatches[i];
+      el.classList.toggle('dib-settings-swatch--active', el.getAttribute('data-dib-theme') === settings.theme);
+    }
+    const densityBtns = settingsPanelEl.querySelectorAll('[data-dib-density]');
+    for (let i = 0; i < densityBtns.length; i++) {
+      const el = densityBtns[i];
+      el.classList.toggle('dib-settings-density-btn--active', el.getAttribute('data-dib-density') === settings.density);
+    }
+  }
+
+  function openSettingsPanel() {
+    if (!settingsPanelEl) return;
+    settingsPanelEl.classList.remove('dib-settings-overlay--hidden');
+  }
+
+  function closeSettingsPanel() {
+    if (!settingsPanelEl) return;
+    settingsPanelEl.classList.add('dib-settings-overlay--hidden');
+  }
 
   function removeRestoreFab() {
     if (restoreFab && restoreFab.parentNode) {
@@ -766,8 +934,12 @@
         '<svg class="dib-pc-ds-svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3c-3.2 0-5.7 2.4-6 5.5V10c0 .9.3 1.8.8 2.5L5.2 17h13.6l-1.6-4.5c.5-.7.8-1.6.8-2.5V8.5C17.7 5.4 15.2 3 12 3zm-2.5 6c.8 0 1.5.7 1.5 1.5S10.3 12 9.5 12 8 11.3 8 10.5 8.7 9 9.5 9zm5 0c.8 0 1.5.7 1.5 1.5s-.7 1.5-1.5 1.5S11 11.3 11 10.5s.7-1.5 1.5-1.5zM9 18v3h2v-3H9zm4 0v3h2v-3h-2z"/></svg>';
       const dsWing =
         '<svg class="dib-pc-ds-svg" viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><ellipse cx="9" cy="12.5" rx="3.2" ry="7" transform="rotate(-22 9 12.5)"/><ellipse cx="15" cy="12.5" rx="3.2" ry="7" transform="rotate(22 15 12.5)"/></g></svg>';
-      const dsRow = document.createElement('div');
-      dsRow.className = 'dib-pc-death-saves';
+      /** Combined row: death-save pips (left) + passive skills (right) */
+      const dsPassRow = document.createElement('div');
+      dsPassRow.className = 'dib-pc-ds-pass-row';
+
+      const dsCol = document.createElement('div');
+      dsCol.className = 'dib-pc-death-saves';
       const dsTitle = document.createElement('div');
       dsTitle.className = 'dib-pc-death-saves-title';
       dsTitle.textContent = 'Death saves';
@@ -796,17 +968,12 @@
       }
       dsFlex.appendChild(succGroup);
       dsFlex.appendChild(failGroup);
-      dsRow.appendChild(dsTitle);
-      dsRow.appendChild(dsFlex);
-      stack.appendChild(dsRow);
+      dsCol.appendChild(dsTitle);
+      dsCol.appendChild(dsFlex);
+      dsPassRow.appendChild(dsCol);
 
-      const passH = document.createElement('div');
-      passH.className = 'dib-pc-section-title';
-      passH.textContent = 'Passive skills';
-      stack.appendChild(passH);
-
-      const passGrid = document.createElement('div');
-      passGrid.className = 'dib-pc-passive-grid';
+      const passCol = document.createElement('div');
+      passCol.className = 'dib-pc-pass-inline';
       function addPassCell(lab, val) {
         const cell = document.createElement('div');
         cell.className = 'dib-pc-pass-cell';
@@ -818,18 +985,19 @@
         lb.textContent = lab;
         cell.appendChild(num);
         cell.appendChild(lb);
-        passGrid.appendChild(cell);
+        passCol.appendChild(cell);
       }
       if (c) {
-        addPassCell('Perception', computePassiveSkill(c, 'perception'));
-        addPassCell('Investigation', computePassiveSkill(c, 'investigation'));
-        addPassCell('Insight', computePassiveSkill(c, 'insight'));
+        addPassCell('Perc.', computePassiveSkill(c, 'perception'));
+        addPassCell('Inv.', computePassiveSkill(c, 'investigation'));
+        addPassCell('Ins.', computePassiveSkill(c, 'insight'));
       } else {
-        addPassCell('Perception', '—');
-        addPassCell('Investigation', '—');
-        addPassCell('Insight', '—');
+        addPassCell('Perc.', '—');
+        addPassCell('Inv.', '—');
+        addPassCell('Ins.', '—');
       }
-      stack.appendChild(passGrid);
+      dsPassRow.appendChild(passCol);
+      stack.appendChild(dsPassRow);
 
       if (c) {
         appendSpellSlotsToParent(stack, c);
@@ -1987,37 +2155,43 @@
     return n;
   }
 
+  function __pickDsScalar(raw) {
+    if (raw == null || raw === '') return null;
+    if (Array.isArray(raw)) return countDeathSaveBoolArray(raw);
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+
   function pickDeathSaveCountsFromObject(ds) {
     if (!ds || typeof ds !== 'object') return { s: null, f: null };
-    let s =
+    const sPick =
       ds.successCount ??
       ds.successes ??
       ds.success ??
       ds.saveSuccesses ??
       ds.deathSavesSuccessCount ??
-      ds.deathSaveSuccessCount;
-    let f =
+      ds.deathSaveSuccessCount ??
+      ds.deathSaveSuccesses ??
+      ds.deathSavesSuccess;
+    const fPick =
       ds.failureCount ??
       ds.failures ??
       ds.fail ??
       ds.fails ??
       ds.saveFailures ??
       ds.deathSavesFailCount ??
-      ds.deathSaveFailCount;
-    if (Array.isArray(s)) {
-      const c = countDeathSaveBoolArray(s);
-      s = c != null ? c : null;
-    }
-    if (Array.isArray(f)) {
-      const c = countDeathSaveBoolArray(f);
-      f = c != null ? c : null;
-    }
-    if (s == null || s === '') {
-      const c2 = countDeathSaveBoolArray(ds.deathSaveSuccesses);
+      ds.deathSaveFailCount ??
+      ds.deathSaveFailures ??
+      ds.deathSavesFail ??
+      ds.failCount;
+    let s = __pickDsScalar(sPick);
+    let f = __pickDsScalar(fPick);
+    if (s == null) {
+      const c2 = countDeathSaveBoolArray(ds.deathSaveSuccesses ?? ds.successRolls);
       if (c2 != null) s = c2;
     }
-    if (f == null || f === '') {
-      const c3 = countDeathSaveBoolArray(ds.deathSaveFailures);
+    if (f == null) {
+      const c3 = countDeathSaveBoolArray(ds.deathSaveFailures ?? ds.failRolls);
       if (c3 != null) f = c3;
     }
     return { s: s, f: f };
@@ -2029,81 +2203,62 @@
     if (!c || typeof c !== 'object') return empty;
     let s = null;
     let f = null;
+
+    function fillFromObj(src) {
+      const inner = pickDeathSaveCountsFromObject(src);
+      if (s == null) s = inner.s;
+      if (f == null) f = inner.f;
+    }
+
     const hpi = c.hitPointInfo;
     if (hpi && typeof hpi === 'object') {
-      s =
+      s = __pickDsScalar(
         hpi.deathSavesSuccessCount ??
         hpi.deathSaveSuccessCount ??
         hpi.deathSavesSuccess ??
         hpi.successCount ??
         hpi.successes ??
-        hpi.success;
-      f =
+        hpi.success,
+      );
+      f = __pickDsScalar(
         hpi.deathSavesFailCount ??
         hpi.deathSaveFailCount ??
         hpi.deathSavesFail ??
         hpi.failureCount ??
         hpi.failures ??
-        hpi.fail;
-      if (Array.isArray(s)) {
-        const c = countDeathSaveBoolArray(s);
-        s = c != null ? c : null;
+        hpi.fail ??
+        hpi.failCount,
+      );
+      /** Always fill missing side from nested deathSaveInfo — e.g. DDB puts successes flat but failures in deathSaveInfo. */
+      if ((s == null || f == null) && hpi.deathSaveInfo && typeof hpi.deathSaveInfo === 'object') {
+        fillFromObj(hpi.deathSaveInfo);
       }
-      if (Array.isArray(f)) {
-        const c = countDeathSaveBoolArray(f);
-        f = c != null ? c : null;
-      }
-      if ((s == null || s === '') && (f == null || f === '') && hpi.deathSaveInfo && typeof hpi.deathSaveInfo === 'object') {
-        const inner = pickDeathSaveCountsFromObject(hpi.deathSaveInfo);
-        s = inner.s;
-        f = inner.f;
-      }
-      if (s == null || s === '') {
-        const bs = countDeathSaveBoolArray(hpi.deathSaveSuccesses);
+      if (s == null) {
+        const bs = countDeathSaveBoolArray(hpi.deathSaveSuccesses ?? hpi.successRolls);
         if (bs != null) s = bs;
       }
-      if (f == null || f === '') {
-        const bf = countDeathSaveBoolArray(hpi.deathSaveFailures);
+      if (f == null) {
+        const bf = countDeathSaveBoolArray(hpi.deathSaveFailures ?? hpi.failRolls);
         if (bf != null) f = bf;
       }
     }
-    if ((s == null || s === '') && (f == null || f === '')) {
-      const topDsi = c.deathSaveInfo;
-      if (topDsi && typeof topDsi === 'object') {
-        const inner = pickDeathSaveCountsFromObject(topDsi);
-        if (s == null || s === '') s = inner.s;
-        if (f == null || f === '') f = inner.f;
-      }
+
+    const topDsi = c.deathSaveInfo;
+    if ((s == null || f == null) && topDsi && typeof topDsi === 'object') {
+      fillFromObj(topDsi);
     }
-    if ((s == null || s === '') && (f == null || f === '')) {
-      const ds = c.deathSaves ?? c.deathSave;
-      if (ds && typeof ds === 'object') {
-        const inner = pickDeathSaveCountsFromObject(ds);
-        if (s == null || s === '') s = inner.s;
-        if (f == null || f === '') f = inner.f;
-      }
+
+    const dsObj = c.deathSaves ?? c.deathSave;
+    if ((s == null || f == null) && dsObj && typeof dsObj === 'object') {
+      fillFromObj(dsObj);
     }
-    if (s == null || s === '') {
-      const sv = c.successes;
-      if (typeof sv === 'number' && Number.isFinite(sv)) s = sv;
-      else if (Array.isArray(sv)) {
-        const c0 = countDeathSaveBoolArray(sv);
-        if (c0 != null) s = c0;
-      }
-    }
-    if (f == null || f === '') {
-      const fv = c.fails;
-      if (typeof fv === 'number' && Number.isFinite(fv)) f = fv;
-      else if (Array.isArray(fv)) {
-        const c1 = countDeathSaveBoolArray(fv);
-        if (c1 != null) f = c1;
-      }
-    }
-    if ((s == null || s === '') && (f == null || f === '')) {
-      const cTop = pickDeathSaveCountsFromObject(c);
-      if (s == null || s === '') s = cTop.s;
-      if (f == null || f === '') f = cTop.f;
-    }
+
+    if (s == null) s = __pickDsScalar(c.successes);
+    if (f == null) f = __pickDsScalar(c.fails ?? c.failures);
+
+    /** Last resort: try top-level as a deathSaveInfo-shaped object. */
+    if (s == null || f == null) fillFromObj(c);
+
     return {
       successes: clampDeathSaveSlot(s),
       failures: clampDeathSaveSlot(f),
@@ -3096,7 +3251,7 @@
         display: flex;
         flex-direction: column;
         font: 12px/1.35 system-ui, "Segoe UI", sans-serif;
-        color: #e7e5e4;
+        color: var(--dib-text, #e7e5e4);
         background: var(--dib-black);
         border: none;
         border-radius: 0;
@@ -3497,16 +3652,16 @@
         align-content: start;
       }
       .dib-party-card {
-        --pc-gold: #c9a962;
-        --pc-gold-dim: #8a7a4a;
-        --pc-teal: #3dd6c7;
-        --pc-teal-dim: #1a9e8c;
-        --pc-panel: #1a1614;
+        --pc-gold: var(--dib-pc-gold, #c9a962);
+        --pc-gold-dim: var(--dib-pc-gold-dim, #8a7a4a);
+        --pc-teal: var(--dib-pc-teal, #3dd6c7);
+        --pc-teal-dim: var(--dib-pc-teal-dim, #1a9e8c);
+        --pc-panel: var(--dib-pc-panel, #1a1614);
         --pc-ink: #0f0e0d;
         border: 1px solid #2a2520;
         border-radius: 10px;
         border-top: 3px solid var(--pc-gold-dim);
-        background: linear-gradient(180deg, #1c1816 0%, #12100e 55%, #0e0c0b 100%);
+        background: linear-gradient(180deg, var(--dib-pc-bg-start, #1c1816) 0%, var(--dib-pc-bg-mid, #12100e) 55%, var(--dib-pc-bg-end, #0e0c0b) 100%);
         padding: 0;
         overflow: hidden;
         display: flex;
@@ -3519,7 +3674,7 @@
         display: flex;
         flex-direction: column;
         gap: 0;
-        padding: 10px 10px 10px;
+        padding: var(--dib-card-padding, 10px);
         min-height: 0;
       }
       .dib-pc-head {
@@ -3533,8 +3688,8 @@
       }
       .dib-pc-avatar-wrap { flex-shrink: 0; }
       .dib-pc-avatar {
-        width: 52px;
-        height: 52px;
+        width: var(--dib-avatar-size, 52px);
+        height: var(--dib-avatar-size, 52px);
         border-radius: 4px;
         object-fit: cover;
         display: block;
@@ -3542,8 +3697,8 @@
         box-shadow: 0 4px 12px rgba(0,0,0,.5);
       }
       .dib-pc-ph {
-        width: 52px;
-        height: 52px;
+        width: var(--dib-avatar-size, 52px);
+        height: var(--dib-avatar-size, 52px);
         border-radius: 4px;
         background: linear-gradient(135deg, #2a2420 0%, #1a1614 100%);
         border: 2px solid var(--pc-gold-dim);
@@ -3639,7 +3794,7 @@
         pointer-events: none;
       }
       .dib-pc-stat-badge-val {
-        font-size: clamp(17px, 4.2vw, 22px);
+        font-size: var(--dib-stat-val-size, clamp(17px,4.2vw,22px));
         font-weight: 800;
         color: #1c1917;
         line-height: 1;
@@ -3683,34 +3838,6 @@
         margin: 8px 0 5px;
         font-size: 8px;
       }
-      .dib-pc-passive-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 8px 6px;
-        margin-bottom: 4px;
-      }
-      .dib-pc-pass-cell {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
-        gap: 4px;
-      }
-      .dib-pc-pass-num {
-        font-size: 20px;
-        font-weight: 800;
-        color: var(--pc-teal);
-        line-height: 1;
-        font-variant-numeric: tabular-nums;
-        text-shadow: 0 0 12px rgba(61,214,199,.35);
-      }
-      .dib-pc-pass-lab {
-        font-size: 8px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #78716c;
-      }
       .dib-pc-block { margin-top: 3px; }
       .dib-pc-stack-empty {
         font-size: 11px;
@@ -3718,10 +3845,18 @@
         font-style: italic;
         padding: 8px 4px;
       }
-      .dib-pc-death-saves {
+      /** Outer row: death-save pips left, passives right */
+      .dib-pc-ds-pass-row {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 6px;
         margin-top: 6px;
         padding: 6px 0 8px;
         border-bottom: 1px solid rgba(42,37,32,.85);
+      }
+      .dib-pc-death-saves {
+        flex-shrink: 0;
       }
       .dib-pc-death-saves-title {
         font-size: 8px;
@@ -3735,8 +3870,41 @@
         display: flex;
         flex-direction: row;
         align-items: center;
-        justify-content: space-between;
-        gap: 10px;
+        justify-content: flex-start;
+        gap: 6px;
+      }
+      .dib-pc-pass-inline {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-end;
+        align-items: flex-end;
+        gap: 4px;
+        padding-top: 2px;
+      }
+      .dib-pc-pass-cell {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 2px;
+        min-width: 0;
+      }
+      .dib-pc-pass-num {
+        font-size: var(--dib-stat-val-size, clamp(17px,4.2vw,22px));
+        font-weight: 800;
+        color: var(--pc-teal);
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        text-shadow: 0 0 10px rgba(61,214,199,.3);
+      }
+      .dib-pc-pass-lab {
+        font-size: 7px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: #78716c;
       }
       .dib-pc-ds-group {
         display: flex;
@@ -3886,6 +4054,140 @@
         background: #080809;
       }
       .dib-foot a { color: #f87171 !important; }
+      .dib-settings-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(0,0,0,.62);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 200;
+      }
+      .dib-settings-overlay--hidden { display: none; }
+      .dib-settings-panel {
+        background: #0e0e10;
+        border: 1px solid var(--dib-border);
+        border-radius: 10px;
+        width: clamp(300px,38vw,460px);
+        box-shadow: 0 20px 60px rgba(0,0,0,.75);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .dib-settings-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 16px 12px;
+        border-bottom: 1px solid var(--dib-border);
+        background: linear-gradient(180deg, #1a0c0e 0%, #0a0a0b 100%);
+      }
+      .dib-settings-title {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: #fafaf9;
+      }
+      .dib-settings-close {
+        cursor: pointer;
+        background: none;
+        border: 1px solid rgba(255,255,255,.12);
+        color: #a8a29e;
+        border-radius: 5px;
+        padding: 3px 8px;
+        font: inherit;
+        font-size: 11px;
+      }
+      .dib-settings-close:hover { border-color: var(--dib-red-hot); color: #fff; }
+      .dib-settings-body {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .dib-settings-section-title {
+        font-size: 9px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: var(--dib-red-hot);
+        margin-bottom: 10px;
+      }
+      .dib-settings-swatches {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .dib-settings-swatch {
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+        padding: 7px 10px;
+        border: 2px solid rgba(255,255,255,.1);
+        border-radius: 8px;
+        background: rgba(255,255,255,.04);
+        flex: 1 1 80px;
+        min-width: 70px;
+      }
+      .dib-settings-swatch:hover { border-color: rgba(255,255,255,.28); }
+      .dib-settings-swatch--active { border-color: var(--dib-red-hot) !important; background: rgba(255,255,255,.08); }
+      .dib-settings-swatch-dot {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 2px solid rgba(255,255,255,.18);
+        flex-shrink: 0;
+      }
+      .dib-settings-swatch-label {
+        font-size: 9px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #a8a29e;
+        text-align: center;
+      }
+      .dib-settings-swatch--active .dib-settings-swatch-label { color: #e7e5e4; }
+      .dib-settings-density-row {
+        display: flex;
+        gap: 8px;
+      }
+      .dib-settings-density-btn {
+        cursor: pointer;
+        flex: 1;
+        padding: 8px 10px;
+        border: 2px solid rgba(255,255,255,.1);
+        border-radius: 7px;
+        background: rgba(255,255,255,.04);
+        font: inherit;
+        font-size: 11px;
+        font-weight: 600;
+        color: #a8a29e;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        align-items: center;
+      }
+      .dib-settings-density-btn:hover { border-color: rgba(255,255,255,.28); color: #e7e5e4; }
+      .dib-settings-density-btn--active { border-color: var(--dib-red-hot) !important; color: #e7e5e4; background: rgba(255,255,255,.08); }
+      .dib-settings-density-hint {
+        font-size: 8px;
+        color: #57534e;
+        font-weight: 400;
+        text-transform: none;
+        letter-spacing: 0;
+      }
+      .dib-settings-density-btn--active .dib-settings-density-hint { color: #78716c; }
+      .dib-settings-footer {
+        font-size: 9px;
+        color: #57534e;
+        padding: 10px 16px 14px;
+        text-align: center;
+        border-top: 1px solid var(--dib-border);
+      }
     `;
 
     const wrap = document.createElement('div');
@@ -3898,12 +4200,17 @@
     headTitle.textContent = 'Campaign combat';
     const headActions = document.createElement('div');
     headActions.className = 'dib-head-actions';
+    const settingsBtn = document.createElement('button');
+    settingsBtn.type = 'button';
+    settingsBtn.textContent = '\u2699 Settings';
+    settingsBtn.addEventListener('click', openSettingsPanel);
     const showDdbBtn = document.createElement('button');
     showDdbBtn.type = 'button';
     showDdbBtn.textContent = 'Show D&D Beyond';
     showDdbBtn.addEventListener('click', function () {
       hideDmOverlay();
     });
+    headActions.appendChild(settingsBtn);
     headActions.appendChild(showDdbBtn);
     head.appendChild(headTitle);
     head.appendChild(headActions);
@@ -4100,14 +4407,119 @@
     initiativeUi.rerollModeOverlay = rerollOverlay;
     initiativeUi.rerollModeMsg = rerollMsg;
 
+    /** Settings panel overlay */
+    const settingsOverlay = document.createElement('div');
+    settingsOverlay.className = 'dib-settings-overlay dib-settings-overlay--hidden';
+    settingsOverlay.addEventListener('click', closeSettingsPanel);
+    const settingsPanel = document.createElement('div');
+    settingsPanel.className = 'dib-settings-panel';
+    settingsPanel.addEventListener('click', (ev) => ev.stopPropagation());
+
+    const settingsHeader = document.createElement('div');
+    settingsHeader.className = 'dib-settings-header';
+    const settingsTitleEl = document.createElement('div');
+    settingsTitleEl.className = 'dib-settings-title';
+    settingsTitleEl.textContent = 'Settings';
+    const settingsCloseBtn = document.createElement('button');
+    settingsCloseBtn.type = 'button';
+    settingsCloseBtn.className = 'dib-settings-close';
+    settingsCloseBtn.textContent = '✕ Close';
+    settingsCloseBtn.addEventListener('click', closeSettingsPanel);
+    settingsHeader.appendChild(settingsTitleEl);
+    settingsHeader.appendChild(settingsCloseBtn);
+
+    const settingsBody = document.createElement('div');
+    settingsBody.className = 'dib-settings-body';
+
+    /** Colour theme section */
+    const themeSection = document.createElement('div');
+    const themeTitle = document.createElement('div');
+    themeTitle.className = 'dib-settings-section-title';
+    themeTitle.textContent = 'Colour Theme';
+    themeSection.appendChild(themeTitle);
+    const swatchRow = document.createElement('div');
+    swatchRow.className = 'dib-settings-swatches';
+    const themeIds = Object.keys(BAR_THEMES);
+    for (let ti = 0; ti < themeIds.length; ti++) {
+      const tid = themeIds[ti];
+      const t = BAR_THEMES[tid];
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = 'dib-settings-swatch' + (barSettings.theme === tid ? ' dib-settings-swatch--active' : '');
+      sw.setAttribute('data-dib-theme', tid);
+      sw.title = t.name;
+      const dot = document.createElement('div');
+      dot.className = 'dib-settings-swatch-dot';
+      dot.style.background = t.swatch;
+      const lbl = document.createElement('div');
+      lbl.className = 'dib-settings-swatch-label';
+      lbl.textContent = t.name;
+      sw.appendChild(dot);
+      sw.appendChild(lbl);
+      sw.addEventListener('click', () => {
+        barSettings.theme = tid;
+        saveBarSettings();
+        applyBarSettings(barSettings, wrap);
+      });
+      swatchRow.appendChild(sw);
+    }
+    themeSection.appendChild(swatchRow);
+    settingsBody.appendChild(themeSection);
+
+    /** Card density section */
+    const densitySection = document.createElement('div');
+    const densityTitle = document.createElement('div');
+    densityTitle.className = 'dib-settings-section-title';
+    densityTitle.textContent = 'Card Density';
+    densitySection.appendChild(densityTitle);
+    const densityRow = document.createElement('div');
+    densityRow.className = 'dib-settings-density-row';
+    function makeDensityBtn(id, label, hint) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'dib-settings-density-btn' + (barSettings.density === id ? ' dib-settings-density-btn--active' : '');
+      btn.setAttribute('data-dib-density', id);
+      const lbl = document.createElement('span');
+      lbl.textContent = label;
+      const hintEl = document.createElement('span');
+      hintEl.className = 'dib-settings-density-hint';
+      hintEl.textContent = hint;
+      btn.appendChild(lbl);
+      btn.appendChild(hintEl);
+      btn.addEventListener('click', () => {
+        barSettings.density = id;
+        saveBarSettings();
+        applyBarSettings(barSettings, wrap);
+      });
+      return btn;
+    }
+    densityRow.appendChild(makeDensityBtn('comfortable', 'Comfortable', 'Larger portraits & numbers'));
+    densityRow.appendChild(makeDensityBtn('compact', 'Compact', 'More cards on screen'));
+    densitySection.appendChild(densityRow);
+    settingsBody.appendChild(densitySection);
+
+    settingsPanel.appendChild(settingsHeader);
+    settingsPanel.appendChild(settingsBody);
+    const settingsFooter = document.createElement('div');
+    settingsFooter.className = 'dib-settings-footer';
+    settingsFooter.textContent = 'Changes apply immediately and are saved across sessions.';
+    settingsPanel.appendChild(settingsFooter);
+    settingsOverlay.appendChild(settingsPanel);
+    settingsPanelEl = settingsOverlay;
+
     wrap.appendChild(confirmOverlay);
     wrap.appendChild(condOverlay);
     wrap.appendChild(rerollOverlay);
+    wrap.appendChild(settingsOverlay);
 
     shadow.appendChild(style);
     shadow.appendChild(wrap);
     document.body.appendChild(hostEl);
     lockBodyScrollForOverlay();
+
+    /** Apply persisted settings immediately after wrap is in DOM. */
+    barSettings = loadBarSettings();
+    applyBarSettings(barSettings, wrap);
 
     loadLocalInitiativeState();
     renderLocalInitiativeUi();
