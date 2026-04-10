@@ -156,7 +156,7 @@
   };
 
   function defaultBarSettings() {
-    return { theme: 'crimson', density: 'comfortable' };
+    return { theme: 'crimson', density: 'comfortable', badgeFill: '#ffffff', badgeIcon: '#f5f5f4', badgeText: '#1c1917' };
   }
 
   function loadBarSettings() {
@@ -192,11 +192,58 @@
       wrapEl.style.setProperty('--dib-avatar-size', '40px');
       wrapEl.style.setProperty('--dib-stat-badge-size', '40px');
       wrapEl.style.setProperty('--dib-stat-val-size', 'clamp(14px,3.5vw,18px)');
+      wrapEl.style.setProperty('--dib-name-size', '11px');
+      wrapEl.style.setProperty('--dib-sub-size', '9px');
+      wrapEl.style.setProperty('--dib-badge-maxw', '72px');
+      wrapEl.style.setProperty('--dib-badge-sub-size', '8px');
+      wrapEl.style.setProperty('--dib-ribbon-size', '6px');
+      wrapEl.style.setProperty('--dib-ph-size', '16px');
+      wrapEl.style.setProperty('--dib-init-avatar-size', '48px');
+      wrapEl.style.setProperty('--dib-init-ph-size', '20px');
+      wrapEl.style.setProperty('--dib-init-row-minheight', '66px');
+      wrapEl.style.setProperty('--dib-init-row-pad', '8px 8px 8px 6px');
+      wrapEl.style.setProperty('--dib-init-name-size', '12px');
+      wrapEl.style.setProperty('--dib-init-rank-size', '13px');
+      wrapEl.style.setProperty('--dib-init-total-size', '22px');
+      wrapEl.style.setProperty('--dib-init-cond-size', '8px');
+    } else if (settings.density === 'large') {
+      wrapEl.style.setProperty('--dib-card-padding', '14px');
+      wrapEl.style.setProperty('--dib-avatar-size', '72px');
+      wrapEl.style.setProperty('--dib-stat-badge-size', '72px');
+      wrapEl.style.setProperty('--dib-stat-val-size', 'clamp(20px,5vw,28px)');
+      wrapEl.style.setProperty('--dib-name-size', '16px');
+      wrapEl.style.setProperty('--dib-sub-size', '12px');
+      wrapEl.style.setProperty('--dib-badge-maxw', '112px');
+      wrapEl.style.setProperty('--dib-badge-sub-size', '11px');
+      wrapEl.style.setProperty('--dib-ribbon-size', '9px');
+      wrapEl.style.setProperty('--dib-ph-size', '26px');
+      wrapEl.style.setProperty('--dib-init-avatar-size', '88px');
+      wrapEl.style.setProperty('--dib-init-ph-size', '34px');
+      wrapEl.style.setProperty('--dib-init-row-minheight', '112px');
+      wrapEl.style.setProperty('--dib-init-row-pad', '18px 14px 18px 10px');
+      wrapEl.style.setProperty('--dib-init-name-size', '18px');
+      wrapEl.style.setProperty('--dib-init-rank-size', '19px');
+      wrapEl.style.setProperty('--dib-init-total-size', '38px');
+      wrapEl.style.setProperty('--dib-init-cond-size', '11px');
     } else {
       wrapEl.style.setProperty('--dib-card-padding', '10px');
       wrapEl.style.setProperty('--dib-avatar-size', '52px');
       wrapEl.style.setProperty('--dib-stat-badge-size', '52px');
       wrapEl.style.setProperty('--dib-stat-val-size', 'clamp(17px,4.2vw,22px)');
+      wrapEl.style.setProperty('--dib-name-size', '13px');
+      wrapEl.style.setProperty('--dib-sub-size', '10px');
+      wrapEl.style.setProperty('--dib-badge-maxw', '88px');
+      wrapEl.style.setProperty('--dib-badge-sub-size', '9px');
+      wrapEl.style.setProperty('--dib-ribbon-size', '7px');
+      wrapEl.style.setProperty('--dib-ph-size', '20px');
+      wrapEl.style.setProperty('--dib-init-avatar-size', '64px');
+      wrapEl.style.setProperty('--dib-init-ph-size', '26px');
+      wrapEl.style.setProperty('--dib-init-row-minheight', '84px');
+      wrapEl.style.setProperty('--dib-init-row-pad', '12px 10px 12px 8px');
+      wrapEl.style.setProperty('--dib-init-name-size', '14px');
+      wrapEl.style.setProperty('--dib-init-rank-size', '15px');
+      wrapEl.style.setProperty('--dib-init-total-size', '28px');
+      wrapEl.style.setProperty('--dib-init-cond-size', '9px');
     }
     /** Parchment needs light text on dark surfaces flipped — override body text colour. */
     if (settings.theme === 'parchment') {
@@ -206,6 +253,10 @@
       wrapEl.style.setProperty('--dib-text', '#e7e5e4');
       wrapEl.style.setProperty('--dib-muted', '#a8a29e');
     }
+    /** Icon background fill, line colour, text colour. */
+    wrapEl.style.setProperty('--dib-badge-fill', settings.badgeFill || '#ffffff');
+    wrapEl.style.setProperty('--dib-badge-icon', settings.badgeIcon || '#f5f5f4');
+    wrapEl.style.setProperty('--dib-badge-text', settings.badgeText || '#1c1917');
     /** Refresh settings panel active states if open. */
     refreshSettingsPanelActiveStates(settings);
   }
@@ -459,7 +510,7 @@
     const ov = c.overrideHitPoints;
     const max = Number.isFinite(Number(ov)) && Number(ov) > 0 ? Number(ov) : Number.isFinite(base) ? base : '?';
     const cur =
-      Number.isFinite(base) && base >= 0 ? Math.max(0, Math.floor(base - rem)) : '?';
+      typeof max === 'number' ? Math.max(0, Math.floor(max - rem)) : '?';
     let s = cur + '/' + max;
     if (tmp > 0) s += ' +' + tmp + ' temp';
     return s;
@@ -784,12 +835,12 @@
     }
     /* Heart + shield: Lucide paths (ISC) — same as PartyCardStatIcons.tsx + DM web cards. */
     const SVG_HEART =
-      '<svg class="dib-pc-stat-svg" viewBox="0 0 1800 1800" aria-hidden="true"><path fill="white" d="M481.2 166.1C224.4 187.5 57 437.7 101.1 686.3c52.5 347.4 340.7 605.2 616.9 803.9 64 43.5 113.4 80.8 181.1 111.5 61-17.3 118-65.1 172.3-99.5 273-191 552.8-441 626.2-777 67.8-305.2-153-601.5-474.1-555.2-85.2 12-158 46.7-229.3 97.6-23.4 7.9-85.4 85.8-98.4 71.1-117.6-113-256-183.2-414.6-172.6Z"/><path fill="currentColor" stroke="#000" stroke-width="5" d="M481.2 166.1C224.4 187.5 57 437.7 101.1 686.3c52.5 347.4 340.7 605.2 616.9 803.9 64 43.5 113.4 80.8 181.1 111.5 61-17.3 118-65.1 172.3-99.5 273-191 552.8-441 626.2-777 67.8-305.2-153-601.5-474.1-555.2-85.2 12-158 46.7-229.3 97.6-23.4 7.9-85.4 85.8-98.4 71.1-117.6-113-256-183.2-414.6-172.6m66 34.4c133 7.2 247.5 89.7 344.5 178.6 23.2 8.4-15.1 14.2-20.8 17.9-2.7 1.2-10.4-7.8-12.1-9.3C638 143.9 232.1 175.1 160 534c-27.8 182 52.2 363.6 164 509.6 130.4 172 319.5 328.1 509.5 450.5 20.7 13.5 36.8 18.8 49.6 38.8 15.6 9.7 33 9.3 44.3-7.2 13.8-14.5 46.2-31.3 69.1-46.6 261.8-177 525.4-398.5 627-701.9C1740 453.2 1474.1 118 1133 259.1c-73 29.4-139.8 82.9-197.8 138.8-6.3 2-14.4-7.4-21.6-8.3-11.8-2.7-9.6-8.2-.4-10.5 454-451 976.8 28 670.8 554.9-113 204.4-294.3 367-489.9 510.1-37.2 26.1-153.3 106.3-189.2 120.4-18-1.4-16.3-6.3-48.4-24.5-238.6-151-483.4-345.8-631.2-597.5-194.8-301-87.8-759.8 321.9-742m8.5 47.6c121.4 12.3 237.2 91.3 319.7 182.3 43.9 69 161.9-178 386.6-183.4 283.1-23 432.7 273.2 345.5 519-102.1 316.8-391.3 548.4-660 723.5-17.9 13.7-16.2 5.8-31-4.8-5.7-3.6-16.4-1.6-23-2.2-8 1.4-14 8.5-19.5 13.8-268.4-166-540-387.2-660.2-682.3-115.3-262.3 20.4-594.8 341.9-565.9"/></svg>';
+      '<svg class="dib-pc-stat-svg" viewBox="0 0 1800 1800" aria-hidden="true"><path class="dib-pc-stat-bg" d="M481.2 166.1C224.4 187.5 57 437.7 101.1 686.3c52.5 347.4 340.7 605.2 616.9 803.9 64 43.5 113.4 80.8 181.1 111.5 61-17.3 118-65.1 172.3-99.5 273-191 552.8-441 626.2-777 67.8-305.2-153-601.5-474.1-555.2-85.2 12-158 46.7-229.3 97.6-23.4 7.9-85.4 85.8-98.4 71.1-117.6-113-256-183.2-414.6-172.6Z"/><path fill="currentColor" stroke="#000" stroke-width="5" d="M481.2 166.1C224.4 187.5 57 437.7 101.1 686.3c52.5 347.4 340.7 605.2 616.9 803.9 64 43.5 113.4 80.8 181.1 111.5 61-17.3 118-65.1 172.3-99.5 273-191 552.8-441 626.2-777 67.8-305.2-153-601.5-474.1-555.2-85.2 12-158 46.7-229.3 97.6-23.4 7.9-85.4 85.8-98.4 71.1-117.6-113-256-183.2-414.6-172.6m66 34.4c133 7.2 247.5 89.7 344.5 178.6 23.2 8.4-15.1 14.2-20.8 17.9-2.7 1.2-10.4-7.8-12.1-9.3C638 143.9 232.1 175.1 160 534c-27.8 182 52.2 363.6 164 509.6 130.4 172 319.5 328.1 509.5 450.5 20.7 13.5 36.8 18.8 49.6 38.8 15.6 9.7 33 9.3 44.3-7.2 13.8-14.5 46.2-31.3 69.1-46.6 261.8-177 525.4-398.5 627-701.9C1740 453.2 1474.1 118 1133 259.1c-73 29.4-139.8 82.9-197.8 138.8-6.3 2-14.4-7.4-21.6-8.3-11.8-2.7-9.6-8.2-.4-10.5 454-451 976.8 28 670.8 554.9-113 204.4-294.3 367-489.9 510.1-37.2 26.1-153.3 106.3-189.2 120.4-18-1.4-16.3-6.3-48.4-24.5-238.6-151-483.4-345.8-631.2-597.5-194.8-301-87.8-759.8 321.9-742m8.5 47.6c121.4 12.3 237.2 91.3 319.7 182.3 43.9 69 161.9-178 386.6-183.4 283.1-23 432.7 273.2 345.5 519-102.1 316.8-391.3 548.4-660 723.5-17.9 13.7-16.2 5.8-31-4.8-5.7-3.6-16.4-1.6-23-2.2-8 1.4-14 8.5-19.5 13.8-268.4-166-540-387.2-660.2-682.3-115.3-262.3 20.4-594.8 341.9-565.9"/></svg>';
     const SVG_SHIELD =
-      '<svg class="dib-pc-stat-svg" viewBox="0 0 1800 1800" aria-hidden="true"><path fill="white" d="M880.5 234.5c14 12.6 29.8 3.8 42.7-3.5 60.7 20 84.7 28.5 154.3 50.8 65.7 21.2 126 38.7 193 58.7 11.7 6.1 41.2 4.2 44.7 18.6a310 310 0 0 0 53.2 108.9c10 20.7 50 41.6 53 59.7-2.7 12.8 8.6 22.5 18.7 30-.3 76.2 0 229.4-.1 305.5-23.2 79.7-64.4 153.6-111.3 220.8-105.8 145.6-247.4 294-412.4 368.7-11.9-10.5-29.3-7.2-40.1 3.3-68.7-40.8-127.9-78.2-183.7-126.5-142.8-122.5-278.2-284-335-463.5-4-77.7-.2-231.5-1.5-309.7 10-4.2 20-14.4 18-26.6-2.8-15.5 35.7-31.8 46.9-52.1a321 321 0 0 0 61-119.9c70.1-33.5 146-43 224.1-71.7 49.2-15.7 62.6-20.1 116-37.9 53.7-13.5 36.6-21.2 58.5-13.6Z"/><path fill="currentColor" stroke="#000" stroke-width="5" d="M889.8 120.5a7581 7581 0 0 1-496.5 154.4c-1.9 66.5-22.5 117-71.8 162.7a193 193 0 0 1-63.2 31c-3.8-1.8 0 200.2-1.3 200.5.7 18.6-5.1 215.7 8 227.4 36.4 108 97.6 210.8 170.6 305 107.7 136.7 219.8 236.1 362.9 321.2 63.6 35 99 67 165.5 18.7 191.2-102.6 346-253.5 465-435.4 46.9-74.1 85-149 109.5-231.5C1526.9 817 1565 470.8 1520 463c-74.1-26.5-118.2-112.4-117-188.1a7328 7328 0 0 1-320-95.3c-58.6-14.2-131.2-53-193.2-59.1m23.2 31.7c151.6 53.1 304 101 461.6 144.2 6.3 63.3 44.3 143.3 103.3 177 3.1 3.9 25.8 12 32.6 16.5-1.6 96 3.6 284-1 379.6-53 180.2-184.2 348.5-316.5 473.2-71 65.2-162.2 132.5-246.5 175.8-17.7 5.8-42.7 29.4-56.3 19.9-173.4-80.4-331.3-220-444.2-370.2-64.3-85-126-189.3-156.2-287.7-7-99.2-9-297.5-.2-393.5 58-17.6 110.8-88.3 123.4-146.3 7.7-10.5-2.4-51 22.6-48.3a6330 6330 0 0 0 323.9-97.9c37.2-11.9 68.9-23.3 107-36 18.6-5.7 27.8-15 46.5-6.3M891.5 180.9c-30 8.4-15.3 29.6-32 32.4-77.9 25.3-164.5 54.4-242 77.2q-66.9 20.4-137.5 40.4c-28.7 5.3-12.2 16-24.4 39.1-16.2 49.4-51 103.6-94.6 135.3-15.3-12.7-41.7-2.7-47 16.5-1.4 13.3 1.6 27.8 15.4 32.8 19.8 75.2-7.2 244.3 10 325.4 59.4 180.8 193.7 339.2 333.3 461.1 56.6 48.7 129.7 100.3 195.8 133.4-.6 14.9 8 28 24.3 30.5 15.6 4 30.1-7 35.2-21.9.3-3.7-1.2-7.9 2.2-10.1 44.2-21.4 91.5-52.8 134.1-84 163.7-126.4 318.4-297.4 389.7-499 16.7-85.2 2.4-246 7.5-333.4 8.7-2 19.7-11.2 20.4-21.3 5.9-24.4-23.4-44.8-44.2-31.6-34-13.6-75-78.5-88.7-112.8-22.6-63.2-7.9-54.9-69-70.4-51-14.8-93-27-141.6-42.6-55.3-15.8-112.9-36-164.9-52.9-10-3.2-31.8-10.8-44.6-14.4-.7-4.8-2.8-10-4-15.4a33 33 0 0 0-33.4-14.3m-11 53.6c14 12.6 29.8 3.8 42.7-3.5 60.7 20 84.7 28.5 154.3 50.8 65.7 21.2 126 38.7 193 58.7 11.7 6.1 41.2 4.2 44.7 18.6a310 310 0 0 0 53.2 108.9c10 20.7 50 41.6 53 59.7-2.7 12.8 8.6 22.5 18.7 30-.3 76.2 0 229.4-.1 305.5-23.2 79.7-64.4 153.6-111.3 220.8-105.8 145.6-247.4 294-412.4 368.7-11.9-10.5-29.3-7.2-40.1 3.3-68.7-40.8-127.9-78.2-183.7-126.5-142.8-122.5-278.2-284-335-463.5-4-77.7-.2-231.5-1.5-309.7 10-4.2 20-14.4 18-26.6-2.8-15.5 35.7-31.8 46.9-52.1a321 321 0 0 0 61-119.9c70.1-33.5 146-43 224.1-71.7 49.2-15.7 62.6-20.1 116-37.9 53.7-13.5 36.6-21.2 58.5-13.6"/></svg>';
+      '<svg class="dib-pc-stat-svg" viewBox="0 0 1800 1800" aria-hidden="true"><path class="dib-pc-stat-bg" d="M880.5 234.5c14 12.6 29.8 3.8 42.7-3.5 60.7 20 84.7 28.5 154.3 50.8 65.7 21.2 126 38.7 193 58.7 11.7 6.1 41.2 4.2 44.7 18.6a310 310 0 0 0 53.2 108.9c10 20.7 50 41.6 53 59.7-2.7 12.8 8.6 22.5 18.7 30-.3 76.2 0 229.4-.1 305.5-23.2 79.7-64.4 153.6-111.3 220.8-105.8 145.6-247.4 294-412.4 368.7-11.9-10.5-29.3-7.2-40.1 3.3-68.7-40.8-127.9-78.2-183.7-126.5-142.8-122.5-278.2-284-335-463.5-4-77.7-.2-231.5-1.5-309.7 10-4.2 20-14.4 18-26.6-2.8-15.5 35.7-31.8 46.9-52.1a321 321 0 0 0 61-119.9c70.1-33.5 146-43 224.1-71.7 49.2-15.7 62.6-20.1 116-37.9 53.7-13.5 36.6-21.2 58.5-13.6Z"/><path fill="currentColor" stroke="#000" stroke-width="2" d="M889.8 120.5a7581 7581 0 0 1-496.5 154.4c-1.9 66.5-22.5 117-71.8 162.7a193 193 0 0 1-63.2 31c-3.8-1.8 0 200.2-1.3 200.5.7 18.6-5.1 215.7 8 227.4 36.4 108 97.6 210.8 170.6 305 107.7 136.7 219.8 236.1 362.9 321.2 63.6 35 99 67 165.5 18.7 191.2-102.6 346-253.5 465-435.4 46.9-74.1 85-149 109.5-231.5C1526.9 817 1565 470.8 1520 463c-74.1-26.5-118.2-112.4-117-188.1a7328 7328 0 0 1-320-95.3c-58.6-14.2-131.2-53-193.2-59.1m23.2 31.7c151.6 53.1 304 101 461.6 144.2 6.3 63.3 44.3 143.3 103.3 177 3.1 3.9 25.8 12 32.6 16.5-1.6 96 3.6 284-1 379.6-53 180.2-184.2 348.5-316.5 473.2-71 65.2-162.2 132.5-246.5 175.8-17.7 5.8-42.7 29.4-56.3 19.9-173.4-80.4-331.3-220-444.2-370.2-64.3-85-126-189.3-156.2-287.7-7-99.2-9-297.5-.2-393.5 58-17.6 110.8-88.3 123.4-146.3 7.7-10.5-2.4-51 22.6-48.3a6330 6330 0 0 0 323.9-97.9c37.2-11.9 68.9-23.3 107-36 18.6-5.7 27.8-15 46.5-6.3M891.5 180.9c-30 8.4-15.3 29.6-32 32.4-77.9 25.3-164.5 54.4-242 77.2q-66.9 20.4-137.5 40.4c-28.7 5.3-12.2 16-24.4 39.1-16.2 49.4-51 103.6-94.6 135.3-15.3-12.7-41.7-2.7-47 16.5-1.4 13.3 1.6 27.8 15.4 32.8 19.8 75.2-7.2 244.3 10 325.4 59.4 180.8 193.7 339.2 333.3 461.1 56.6 48.7 129.7 100.3 195.8 133.4-.6 14.9 8 28 24.3 30.5 15.6 4 30.1-7 35.2-21.9.3-3.7-1.2-7.9 2.2-10.1 44.2-21.4 91.5-52.8 134.1-84 163.7-126.4 318.4-297.4 389.7-499 16.7-85.2 2.4-246 7.5-333.4 8.7-2 19.7-11.2 20.4-21.3 5.9-24.4-23.4-44.8-44.2-31.6-34-13.6-75-78.5-88.7-112.8-22.6-63.2-7.9-54.9-69-70.4-51-14.8-93-27-141.6-42.6-55.3-15.8-112.9-36-164.9-52.9-10-3.2-31.8-10.8-44.6-14.4-.7-4.8-2.8-10-4-15.4a33 33 0 0 0-33.4-14.3m-11 53.6c14 12.6 29.8 3.8 42.7-3.5 60.7 20 84.7 28.5 154.3 50.8 65.7 21.2 126 38.7 193 58.7 11.7 6.1 41.2 4.2 44.7 18.6a310 310 0 0 0 53.2 108.9c10 20.7 50 41.6 53 59.7-2.7 12.8 8.6 22.5 18.7 30-.3 76.2 0 229.4-.1 305.5-23.2 79.7-64.4 153.6-111.3 220.8-105.8 145.6-247.4 294-412.4 368.7-11.9-10.5-29.3-7.2-40.1 3.3-68.7-40.8-127.9-78.2-183.7-126.5-142.8-122.5-278.2-284-335-463.5-4-77.7-.2-231.5-1.5-309.7 10-4.2 20-14.4 18-26.6-2.8-15.5 35.7-31.8 46.9-52.1a321 321 0 0 0 61-119.9c70.1-33.5 146-43 224.1-71.7 49.2-15.7 62.6-20.1 116-37.9 53.7-13.5 36.6-21.2 58.5-13.6"/></svg>';
     /* Spell save: beveled hexagon d20 face — from Illustrator trace. */
     const SVG_SPELL_D20 =
-      '<svg class="dib-pc-stat-svg" viewBox="0 0 1800 1800" aria-hidden="true"><path fill="white" d="M904.3 151.1c-223.8 104-443 241-656 366.9-12.3 61.8-1.7 299.2-4.2 352 6.1 34.7-21 353.7 20 363.9 208 116.5 413.6 237.6 621 355.2 226.6-81.7 434.2-246 654.4-358.4 38-9 11-320 17.2-366.5-8.8-47.3 29.5-360.4-29.2-364.3-208.3-115-411.8-242.6-623.2-348.8Z"/><path fill="currentColor" stroke="#000" stroke-width="5" d="M904.3 151.1c-223.8 104-443 241-656 366.9-12.3 61.8-1.7 299.2-4.2 352 6.1 34.7-21 353.7 20 363.9 208 116.5 413.6 237.6 621 355.2 226.6-81.7 434.2-246 654.4-358.4 38-9 11-320 17.2-366.5-8.8-47.3 29.5-360.4-29.2-364.3-208.3-115-411.8-242.6-623.2-348.8M615.8 553.8C716.8 431.1 795.3 317 900 190c73.7 96.5 150.7 196.7 225.1 292 14.6 19 34.2 44.9 48.4 61.5 4.4 7.5 24.2 20.2 2.8 17.7M869 192.5C778.5 311 679 435.6 585.7 558.9c-44.8-1.6-111-17.7-158.2-22.4-40.6-9.1-98.8-7.1-132.5-21.4 193.3-105 382.7-220.7 574-322.6m80.4 9.6c181.5 107.6 376.8 208.3 553.1 316.9-66.5 7.9-134.4 17.2-204.6 28-24.7 2.3-61.6 10.3-83.4 13.1-7-7.4-8.9-9.4-17.5-21-63.8-82.8-127.1-165.2-193-249.1-7-14.9-114.6-131-54.6-87.9m-668.9 335c89 14.2 180 26.4 269.1 39.9 7 .4 22.2 1.6 24.3 4.2-9 16.3-22.2 42-30.3 58.8-85.4 169.9-195.8 399-274.9 540 6.3-1.5-17.5-666.8 11.8-642.9M1529 857c-2.2 2.7 4.8 323.4-1.8 324.2A32146 32146 0 0 1 1309 751c-25.6-51.4-60.2-121.9-85.2-170.1 8.8-4 31.5-5 41.2-6.9 86.7-13.3 171.9-23.3 258.4-38 13.3-12.9 1.8 322 5.7 321m-338.9-269.9c-17.3 27.3-39.2 72-55.8 102.9-71.8 134.6-134.9 256.7-209.4 391-39.2 81.6-23.7 35.7-66.4-25.1-48.5-88.3-96.7-180-143.5-268.4-38-70.5-68.4-131.3-108.5-203.6m-14 17c90.8 175 188.7 364.7 287.8 537.4-170.8 18.5-367.8 32.6-545.7 50.7-10.3-2.8-56.8 17-46.3-1.7 29.4-48.7 45.5-83.1 75.5-139.3 57-111 158.4-310.8 215.6-431.3 8.9-16.9 6.3-23.7 13.1-15.8m616.9-2.3c99.4 204.4 200.3 408.1 292.1 576.3 3.6 7.3 18.7 24.2 2 20.1-194.1-21.6-389.5-41.4-585.6-53 96-176 195.8-370 291.5-543.4m-322.3 731.3c-2.3 14 8.6 180-12.6 182-18-4.2-38.3-21-55.2-28.9-101.7-57.9-202.7-115.6-305.3-174.2-53.7-30.4-106-61-159.5-90-16.8 0-17 6.4-1.9 12.2 116.7 66.8 235 134.7 351.9 201 57.2 32.8 102.2 59 162.9 92.1 8.8 1.1 11.5 14.4 20.1 16.9 13.3 5.4 27 3.7 35.6-10.8 43.3-28.4 104.7-58.8 146.2-84.5 88.5-51 180.8-102.4 269.9-154.7 10.5-7.7 97.7-51.7 119.8-70.1-10.6-6-23.6.8-32.5 6.7-170 94-333.1 192.5-502.3 285.4a23 23 0 0 0-13.7-15.1c-.5-83.2 1.9-230.3-.3-313.4-1.8-26.8-4-25 24.8-21 191.4 16.6 380.4 33.9 573.5 52 .5 3.1.5 3.5-2.7 4.6-22.8 9.8-79 44-108.3 60.4-118.8 68.5-232.4 133.1-351 201a20254 20254 0 0 0-117 67.9c-29.3 20.8-31 18.6-66.8-3.4-167.3-97-338-193-505.7-290-20-11.3-53-31-68.1-37.5 7.1-8.7 33.7-3.9 46.6-7.4 151-12.4 300.7-29.4 447-40.1 155-17.4 92.6-25.3 104.6 158.9M814.5 240.4c-151.4 87.7-306.1 173.5-460 261.6-1.4.3-13.5 7.7-15.5 10.4 3.6 2.4 9.6 1.8 13.7 4.8 9.2-5.7 23.6-14.3 30.1-17.5 93.1-52.3 184.7-104.5 278.4-157.5 30.8-22.7 153.3-74 153.3-101.8M981 240.8c19.8 34 70.1 50 100.8 70.5 92.3 53 187.6 105.5 279.9 158.8 23.9 9.1 75.9 52.7 95.4 43.9C1314.3 422.6 1134 329.9 981 240.8M288.6 551.6c7.2-2.6-16.9 601.6 9.9 560.7 2.2-42.8 1.1-444.3 1.5-558.4-1-3-3.1-4.8-6.4-3.9-1.3 1.4-5.2-1.7-5 1.6M1498.7 552.8c-1 127.6-8 502.4 3.9 562.3 13.3-40.9 13-600.3-3.9-562.3"/></svg>';
+      '<svg class="dib-pc-stat-svg" viewBox="0 0 1800 1800" aria-hidden="true"><path class="dib-pc-stat-bg" d="M904.3 151.1c-223.8 104-443 241-656 366.9-12.3 61.8-1.7 299.2-4.2 352 6.1 34.7-21 353.7 20 363.9 208 116.5 413.6 237.6 621 355.2 226.6-81.7 434.2-246 654.4-358.4 38-9 11-320 17.2-366.5-8.8-47.3 29.5-360.4-29.2-364.3-208.3-115-411.8-242.6-623.2-348.8Z"/><path fill="currentColor" stroke="#000" stroke-width="5" d="M904.3 151.1c-223.8 104-443 241-656 366.9-12.3 61.8-1.7 299.2-4.2 352 6.1 34.7-21 353.7 20 363.9 208 116.5 413.6 237.6 621 355.2 226.6-81.7 434.2-246 654.4-358.4 38-9 11-320 17.2-366.5-8.8-47.3 29.5-360.4-29.2-364.3-208.3-115-411.8-242.6-623.2-348.8M615.8 553.8C716.8 431.1 795.3 317 900 190c73.7 96.5 150.7 196.7 225.1 292 14.6 19 34.2 44.9 48.4 61.5 4.4 7.5 24.2 20.2 2.8 17.7M869 192.5C778.5 311 679 435.6 585.7 558.9c-44.8-1.6-111-17.7-158.2-22.4-40.6-9.1-98.8-7.1-132.5-21.4 193.3-105 382.7-220.7 574-322.6m80.4 9.6c181.5 107.6 376.8 208.3 553.1 316.9-66.5 7.9-134.4 17.2-204.6 28-24.7 2.3-61.6 10.3-83.4 13.1-7-7.4-8.9-9.4-17.5-21-63.8-82.8-127.1-165.2-193-249.1-7-14.9-114.6-131-54.6-87.9m-668.9 335c89 14.2 180 26.4 269.1 39.9 7 .4 22.2 1.6 24.3 4.2-9 16.3-22.2 42-30.3 58.8-85.4 169.9-195.8 399-274.9 540 6.3-1.5-17.5-666.8 11.8-642.9M1529 857c-2.2 2.7 4.8 323.4-1.8 324.2A32146 32146 0 0 1 1309 751c-25.6-51.4-60.2-121.9-85.2-170.1 8.8-4 31.5-5 41.2-6.9 86.7-13.3 171.9-23.3 258.4-38 13.3-12.9 1.8 322 5.7 321m-338.9-269.9c-17.3 27.3-39.2 72-55.8 102.9-71.8 134.6-134.9 256.7-209.4 391-39.2 81.6-23.7 35.7-66.4-25.1-48.5-88.3-96.7-180-143.5-268.4-38-70.5-68.4-131.3-108.5-203.6m-14 17c90.8 175 188.7 364.7 287.8 537.4-170.8 18.5-367.8 32.6-545.7 50.7-10.3-2.8-56.8 17-46.3-1.7 29.4-48.7 45.5-83.1 75.5-139.3 57-111 158.4-310.8 215.6-431.3 8.9-16.9 6.3-23.7 13.1-15.8m616.9-2.3c99.4 204.4 200.3 408.1 292.1 576.3 3.6 7.3 18.7 24.2 2 20.1-194.1-21.6-389.5-41.4-585.6-53 96-176 195.8-370 291.5-543.4m-322.3 731.3c-2.3 14 8.6 180-12.6 182-18-4.2-38.3-21-55.2-28.9-101.7-57.9-202.7-115.6-305.3-174.2-53.7-30.4-106-61-159.5-90-16.8 0-17 6.4-1.9 12.2 116.7 66.8 235 134.7 351.9 201 57.2 32.8 102.2 59 162.9 92.1 8.8 1.1 11.5 14.4 20.1 16.9 13.3 5.4 27 3.7 35.6-10.8 43.3-28.4 104.7-58.8 146.2-84.5 88.5-51 180.8-102.4 269.9-154.7 10.5-7.7 97.7-51.7 119.8-70.1-10.6-6-23.6.8-32.5 6.7-170 94-333.1 192.5-502.3 285.4a23 23 0 0 0-13.7-15.1c-.5-83.2 1.9-230.3-.3-313.4-1.8-26.8-4-25 24.8-21 191.4 16.6 380.4 33.9 573.5 52 .5 3.1.5 3.5-2.7 4.6-22.8 9.8-79 44-108.3 60.4-118.8 68.5-232.4 133.1-351 201a20254 20254 0 0 0-117 67.9c-29.3 20.8-31 18.6-66.8-3.4-167.3-97-338-193-505.7-290-20-11.3-53-31-68.1-37.5 7.1-8.7 33.7-3.9 46.6-7.4 151-12.4 300.7-29.4 447-40.1 155-17.4 92.6-25.3 104.6 158.9M814.5 240.4c-151.4 87.7-306.1 173.5-460 261.6-1.4.3-13.5 7.7-15.5 10.4 3.6 2.4 9.6 1.8 13.7 4.8 9.2-5.7 23.6-14.3 30.1-17.5 93.1-52.3 184.7-104.5 278.4-157.5 30.8-22.7 153.3-74 153.3-101.8M981 240.8c19.8 34 70.1 50 100.8 70.5 92.3 53 187.6 105.5 279.9 158.8 23.9 9.1 75.9 52.7 95.4 43.9C1314.3 422.6 1134 329.9 981 240.8M288.6 551.6c7.2-2.6-16.9 601.6 9.9 560.7 2.2-42.8 1.1-444.3 1.5-558.4-1-3-3.1-4.8-6.4-3.9-1.3 1.4-5.2-1.7-5 1.6M1498.7 552.8c-1 127.6-8 502.4 3.9 562.3 13.3-40.9 13-600.3-3.9-562.3"/></svg>';
 
     function makeStatBadge(kind, svgHtml, valueMain, valueSub, ribbonLabel) {
       const wrap = document.createElement('div');
@@ -822,7 +873,7 @@
       const id = ids[ix];
       const c = partyById[String(id)];
       const card = document.createElement('div');
-      card.className = 'dib-party-card';
+      card.className = 'dib-party-card' + (c && c.inspiration ? ' dib-party-card--inspired' : '');
       card.setAttribute('data-ddb-char-id', String(id));
       card.addEventListener('click', function partyCardInitJump() {
         if (!localInitState || !localInitState.turnOrder.length) return;
@@ -1851,6 +1902,8 @@
     }
     if (!x || typeof x !== 'object') return '';
     const o = x;
+    /** Skip entries DDB marks as inactive (active: false / removed: true). */
+    if (o.active === false || o.removed === true) return '';
     if (typeof o.name === 'string' && o.name.trim()) return o.name.trim();
     if (typeof o.label === 'string' && o.label.trim()) return o.label.trim();
     const def = o.definition;
@@ -1946,8 +1999,29 @@
       }
       if (key === 'hitPointInfo' && lv && typeof lv === 'object' && !Array.isArray(lv)) {
         const prev = target.hitPointInfo && typeof target.hitPointInfo === 'object' ? target.hitPointInfo : {};
-        target.hitPointInfo = Object.assign({}, __cloneJsonValueUsr(prev), __cloneJsonValueUsr(lv));
+        // Legacy character-tools correctly computes maxHitPoints (honouring overrideHitPoints / Fixed HP).
+        // v5 raw API omits the override so we let legacy win for computed totals, then re-derive
+        // currentHitPoints from v5's live removedHitPoints so mid-session damage still shows.
+        const merged = Object.assign({}, __cloneJsonValueUsr(lv), __cloneJsonValueUsr(prev));
+        const liveRem = lv.removedHitPoints;
+        const liveTmp = lv.temporaryHitPoints;
+        if (typeof liveRem === 'number') {
+          merged.removedHitPoints = liveRem;
+          const maxNum = Number(merged.maxHitPoints ?? merged.max ?? merged.hitPointsMax ?? merged.maximumHitPoints);
+          if (Number.isFinite(maxNum) && maxNum > 0) {
+            merged.currentHitPoints = Math.max(0, maxNum - liveRem);
+          }
+        }
+        if (typeof liveTmp === 'number') merged.temporaryHitPoints = liveTmp;
+        target.hitPointInfo = merged;
         continue;
+      }
+      if (key === 'armorClass') {
+        // v5 raw API returns null or the uncomputed base (10) for this field; it does not run
+        // the full equipment calculation that character-tools (legacy endpoint) performs.
+        // Prefer any valid value the legacy endpoint has already computed.
+        const legAc = target.armorClass;
+        if (typeof legAc === 'number' && Number.isFinite(legAc) && legAc >= 10) continue;
       }
       if (key === 'deathSaveInfo' && lv && typeof lv === 'object' && !Array.isArray(lv)) {
         const prev = target.deathSaveInfo && typeof target.deathSaveInfo === 'object' ? target.deathSaveInfo : {};
@@ -2074,30 +2148,8 @@
         if (labels.size >= maxLabels) return;
       }
     }
-    function consumeModifiers(modRoot) {
-      if (!modRoot || typeof modRoot !== 'object' || Array.isArray(modRoot)) return;
-      const mkeys = Object.keys(modRoot);
-      for (let ki = 0; ki < mkeys.length; ki++) {
-        const arr = modRoot[mkeys[ki]];
-        if (!Array.isArray(arr)) continue;
-        for (let i = 0; i < arr.length; i++) {
-          const m = arr[i];
-          if (!m || typeof m !== 'object') continue;
-          if (m.type !== 'condition') continue;
-          const n = String(m.friendlySubtypeName || m.subType || m.name || '').trim();
-          if (!n || isDdbConditionPlaceholderLabel(n)) continue;
-          const pieces = expandGluedConditionTokens(n);
-          for (let p = 0; p < pieces.length; p++) {
-            const piece = pieces[p];
-            if (piece && !isDdbConditionPlaceholderLabel(piece)) labels.add(piece);
-          }
-          if (labels.size >= maxLabels) return;
-        }
-      }
-    }
     consume(r.conditions);
     consume(r.activeConditions);
-    consumeModifiers(r.modifiers);
     return Array.from(labels).slice(0, maxLabels);
   }
 
@@ -2134,8 +2186,8 @@
         : Number.isFinite(base) && base >= 0
           ? Math.floor(base)
           : null;
-    const cur =
-      Number.isFinite(base) && base >= 0 ? Math.max(0, Math.floor(base - rem)) : null;
+    /** Use same base as max so overrideHitPoints (Fixed HP) doesn't cause cur < max at full health. */
+    const cur = max != null ? Math.max(0, max - rem) : null;
     return {
       cur: cur == null ? '—' : String(cur),
       max: max == null ? '—' : String(max),
@@ -2716,12 +2768,17 @@
   }
 
   function abbrevConditionLabel(name) {
-    const t = String(name || '')
-      .trim()
-      .toUpperCase()
-      .replace(/\s+/g, '');
-    if (t.length <= 4) return t;
-    return t.slice(0, 4);
+    const t = String(name || '').trim().toUpperCase();
+    const m = t.match(/^([A-Z][A-Z\s]*)(\d+)$/);
+    if (m) {
+      const letters = m[1].replace(/\s+/g, '');
+      const num = m[2];
+      const abbr = letters.length <= 4 ? letters : letters.slice(0, 4);
+      return abbr + num;
+    }
+    const flat = t.replace(/\s+/g, '');
+    if (flat.length <= 4) return flat;
+    return flat.slice(0, 4);
   }
 
   function formatConditionPillText(c) {
@@ -2931,6 +2988,7 @@
     nameEl.textContent = e.label;
     nameRow.appendChild(nameEl);
     const partyC = e.entityId != null && e.entityId !== '' ? partyById[String(e.entityId)] : null;
+    if (partyC && partyC.inspiration) card.classList.add('dib-init-card--inspired');
     const sheetCondLabs = partyC ? extractDdbConditionLabels(partyC) : [];
     const trackerAbbrevs = new Set(
       (Array.isArray(e.conditions) ? e.conditions : []).map(function (tc) {
@@ -3375,6 +3433,12 @@
         border-color: var(--dib-red-hot);
         box-shadow: 0 0 0 2px rgba(239,68,68,.35), 0 8px 24px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);
       }
+      .dib-init-card--inspired {
+        box-shadow: 0 0 10px 3px rgba(255,215,0,.45), 0 0 3px 1px rgba(255,215,0,.2);
+      }
+      .dib-init-card-active.dib-init-card--inspired {
+        box-shadow: 0 0 0 2px rgba(239,68,68,.35), 0 0 10px 3px rgba(255,215,0,.45), 0 8px 24px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);
+      }
       .dib-init-total--hidden {
         font-size: 22px;
         font-weight: 700;
@@ -3391,14 +3455,14 @@
         flex-direction: row;
         align-items: center;
         gap: 10px;
-        padding: 12px 10px 12px 8px;
-        min-height: 84px;
+        padding: var(--dib-init-row-pad, 12px 10px 12px 8px);
+        min-height: var(--dib-init-row-minheight, 84px);
       }
       .dib-init-rank {
         flex: 0 0 22px;
         text-align: center;
         font-weight: 800;
-        font-size: 15px;
+        font-size: var(--dib-init-rank-size, 15px);
         color: #57534e;
         font-variant-numeric: tabular-nums;
       }
@@ -3406,8 +3470,8 @@
         flex: 0 0 auto;
       }
       .dib-init-avatar {
-        width: 64px;
-        height: 64px;
+        width: var(--dib-init-avatar-size, 64px);
+        height: var(--dib-init-avatar-size, 64px);
         border-radius: 10px;
         object-fit: cover;
         display: block;
@@ -3415,15 +3479,15 @@
         box-shadow: 0 4px 12px rgba(0,0,0,.45);
       }
       .dib-init-ph {
-        width: 64px;
-        height: 64px;
+        width: var(--dib-init-avatar-size, 64px);
+        height: var(--dib-init-avatar-size, 64px);
         border-radius: 10px;
         background: linear-gradient(135deg, #292524 0%, #1c1917 100%);
         border: 2px solid #3f2026;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 26px;
+        font-size: var(--dib-init-ph-size, 26px);
         font-weight: 800;
         color: #78716c;
         box-shadow: 0 4px 12px rgba(0,0,0,.4);
@@ -3441,7 +3505,7 @@
       }
       .dib-init-name {
         font-weight: 700;
-        font-size: 14px;
+        font-size: var(--dib-init-name-size, 14px);
         color: #f8fafc;
         letter-spacing: 0.02em;
         line-height: 1.25;
@@ -3453,7 +3517,7 @@
       .dib-init-cond-pill--ddb {
         flex: 0 0 auto;
         cursor: default;
-        font-size: 8px;
+        font-size: var(--dib-init-cond-size, 8px);
         font-weight: 700;
         letter-spacing: 0.06em;
         padding: 2px 5px;
@@ -3476,7 +3540,7 @@
         display: inline-flex;
         align-items: center;
         gap: 1px;
-        font-size: 9px;
+        font-size: var(--dib-init-cond-size, 9px);
         font-weight: 700;
         letter-spacing: 0.04em;
         padding: 1px 4px 1px 5px;
@@ -3617,7 +3681,7 @@
         min-width: 76px;
       }
       .dib-init-total {
-        font-size: 28px;
+        font-size: var(--dib-init-total-size, 28px);
         font-weight: 800;
         color: #fef2f2;
         line-height: 1;
@@ -3676,6 +3740,9 @@
         box-shadow: 0 10px 28px rgba(0,0,0,.55), inset 0 1px 0 rgba(201,169,98,.08);
         cursor: default;
       }
+      .dib-party-card--inspired {
+        box-shadow: 0 0 14px 4px rgba(255,215,0,.55), 0 0 5px 1px rgba(255,215,0,.25), inset 0 1px 0 rgba(201,169,98,.08);
+      }
       .dib-pc-stack {
         display: flex;
         flex-direction: column;
@@ -3711,7 +3778,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 20px;
+        font-size: var(--dib-ph-size, 20px);
         font-weight: 800;
         color: #57534e;
       }
@@ -3719,7 +3786,7 @@
       .dib-pc-name {
         font-weight: 700;
         color: var(--pc-gold);
-        font-size: 13px;
+        font-size: var(--dib-name-size, 13px);
         letter-spacing: 0.1em;
         text-transform: uppercase;
         font-family: Georgia, "Times New Roman", serif;
@@ -3745,14 +3812,14 @@
         color: var(--pc-teal);
       }
       .dib-pc-race {
-        font-size: 10px;
+        font-size: var(--dib-sub-size, 10px);
         font-style: italic;
         color: #78716c;
         margin-top: 4px;
         line-height: 1.3;
       }
       .dib-pc-classline {
-        font-size: 10px;
+        font-size: var(--dib-sub-size, 10px);
         color: #a8a29e;
         margin-top: 3px;
         line-height: 1.35;
@@ -3776,16 +3843,19 @@
       .dib-pc-stat-badge-graphic {
         position: relative;
         width: 100%;
-        max-width: 88px;
+        max-width: var(--dib-badge-maxw, 88px);
         margin: 0 auto;
         aspect-ratio: 1 / 1.05;
-        color: #f5f5f4;
+        color: var(--dib-badge-icon, #f5f5f4);
         filter: drop-shadow(0 2px 6px rgba(0,0,0,.45));
       }
       .dib-pc-stat-svg {
         width: 100%;
         height: 100%;
         display: block;
+      }
+      .dib-pc-stat-bg {
+        fill: var(--dib-badge-fill, #ffffff);
       }
       .dib-pc-stat-badge-nums {
         position: absolute;
@@ -3802,15 +3872,15 @@
       .dib-pc-stat-badge-val {
         font-size: var(--dib-stat-val-size, clamp(17px,4.2vw,22px));
         font-weight: 800;
-        color: #1c1917;
+        color: var(--dib-badge-text, #1c1917);
         line-height: 1;
         font-variant-numeric: tabular-nums;
         text-shadow: 0 0 1px rgba(255,255,255,.35);
       }
       .dib-pc-stat-badge-sub {
-        font-size: 9px;
+        font-size: var(--dib-badge-sub-size, 9px);
         font-weight: 600;
-        color: #44403c;
+        color: var(--dib-badge-text, #1c1917);
         margin-top: 2px;
         font-variant-numeric: tabular-nums;
         max-width: 72px;
@@ -3821,7 +3891,7 @@
         padding: 5px 4px 4px;
         background: linear-gradient(180deg, #0a0908 0%, #050403 100%);
         color: #fafaf9;
-        font-size: 7px;
+        font-size: var(--dib-ribbon-size, 7px);
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.12em;
@@ -4035,12 +4105,11 @@
         line-height: 1.25;
       }
       .dib-pc-class-res-lv {
-        max-width: 76px;
-        overflow: hidden;
-        text-overflow: ellipsis;
         font-size: 9px;
         font-weight: 600;
         color: #a8a29e;
+        word-break: break-word;
+        line-height: 1.3;
       }
       .dib-pc-pills { display: flex; flex-wrap: wrap; gap: 5px; }
       .dib-pc-pill {
@@ -4502,8 +4571,56 @@
     }
     densityRow.appendChild(makeDensityBtn('comfortable', 'Comfortable', 'Larger portraits & numbers'));
     densityRow.appendChild(makeDensityBtn('compact', 'Compact', 'More cards on screen'));
+    densityRow.appendChild(makeDensityBtn('large', 'Large', 'Maximum size portraits & text'));
     densitySection.appendChild(densityRow);
     settingsBody.appendChild(densitySection);
+
+    /** Icon colours section */
+    const badgeColSection = document.createElement('div');
+    const badgeColTitle = document.createElement('div');
+    badgeColTitle.className = 'dib-settings-section-title';
+    badgeColTitle.textContent = 'Icon Colours';
+    badgeColSection.appendChild(badgeColTitle);
+    function makeColourRow(label, settingKey, defaultVal) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;';
+      const lbl = document.createElement('span');
+      lbl.style.cssText = 'font-size:11px;min-width:70px;opacity:.75;';
+      lbl.textContent = label;
+      const picker = document.createElement('input');
+      picker.type = 'color';
+      picker.value = barSettings[settingKey] || defaultVal;
+      picker.style.cssText = 'width:36px;height:28px;padding:2px;border:1px solid rgba(255,255,255,.15);border-radius:5px;background:transparent;cursor:pointer;flex-shrink:0;';
+      const hexLbl = document.createElement('span');
+      hexLbl.style.cssText = 'font-size:10px;opacity:.5;flex:1;';
+      hexLbl.textContent = barSettings[settingKey] || defaultVal;
+      const resetBtn = document.createElement('button');
+      resetBtn.type = 'button';
+      resetBtn.textContent = 'Reset';
+      resetBtn.style.cssText = 'font-size:10px;padding:3px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:inherit;cursor:pointer;';
+      picker.addEventListener('input', () => {
+        barSettings[settingKey] = picker.value;
+        hexLbl.textContent = picker.value;
+        saveBarSettings();
+        applyBarSettings(barSettings, wrap);
+      });
+      resetBtn.addEventListener('click', () => {
+        barSettings[settingKey] = defaultVal;
+        picker.value = defaultVal;
+        hexLbl.textContent = defaultVal;
+        saveBarSettings();
+        applyBarSettings(barSettings, wrap);
+      });
+      row.appendChild(lbl);
+      row.appendChild(picker);
+      row.appendChild(hexLbl);
+      row.appendChild(resetBtn);
+      return row;
+    }
+    badgeColSection.appendChild(makeColourRow('Fill', 'badgeFill', '#ffffff'));
+    badgeColSection.appendChild(makeColourRow('Lines', 'badgeIcon', '#f5f5f4'));
+    badgeColSection.appendChild(makeColourRow('Number', 'badgeText', '#1c1917'));
+    settingsBody.appendChild(badgeColSection);
 
     /** Remote Control section */
     var rcSection = document.createElement('div');
