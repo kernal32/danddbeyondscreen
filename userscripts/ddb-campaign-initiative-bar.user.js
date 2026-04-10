@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         DDB Campaign — left initiative bar (local)
 // @namespace    https://github.com/your-org/ddb-dm-screen
-// @version      1.6.2
-// @description  Fullscreen DM overlay on /campaigns/*: Start Combat / Next Round initiative flow; conditions pills; party cards with death-save pips; hide totals until turn. Party click-to-turn. Wiki: https://github.com/TeaWithLucas/DNDBeyond-DM-Screen/wiki/Module-output — legacy → v5 → v4. Cobalt 999080.
+// @version      1.6.3
+// @description  Fullscreen DM overlay on /campaigns/*: Start Combat / Next Round initiative flow; ▶ after last turn (all rolls revealed) runs next round; conditions pills; death-save pips; hide totals until turn. Party click-to-turn. Wiki: https://github.com/TeaWithLucas/DNDBeyond-DM-Screen/wiki/Module-output — legacy → v5 → v4. Cobalt 999080.
 // @match        https://www.dndbeyond.com/*
 // @match        https://www.dndbeyond.com/
 // @match        https://dndbeyond.com/*
@@ -1923,6 +1923,15 @@
     if (allCombatantsHaveRolled(state) && oldId && revealedEntryIds.indexOf(oldId) === -1) {
       revealedEntryIds.push(oldId);
     }
+    const lastIdx = state.turnOrder.length - 1;
+    if (
+      state.combatActive &&
+      allCombatantsHaveRolled(state) &&
+      oldIdx === lastIdx &&
+      revealedIdsCoverFullTurnOrder(state, revealedEntryIds)
+    ) {
+      return nextRound(state);
+    }
     let nextIndex = oldIdx + 1;
     if (nextIndex >= state.turnOrder.length) {
       nextIndex = 0;
@@ -1967,6 +1976,15 @@
     if (!s || !Array.isArray(s.turnOrder) || !s.turnOrder.length) return false;
     for (let i = 0; i < s.turnOrder.length; i++) {
       if (!entryHasRoll(s.entries[s.turnOrder[i]])) return false;
+    }
+    return true;
+  }
+
+  function revealedIdsCoverFullTurnOrder(state, revealedEntryIds) {
+    if (!state.turnOrder.length) return false;
+    const set = new Set(revealedEntryIds);
+    for (let i = 0; i < state.turnOrder.length; i++) {
+      if (!set.has(state.turnOrder[i])) return false;
     }
     return true;
   }
