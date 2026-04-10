@@ -1198,6 +1198,65 @@
     return String(total);
   }
 
+  /**
+   * Compute AC from raw DDB character JSON (inventory + modifiers).
+   * The raw endpoints (legacy /json and character-service v5) do not return a pre-computed
+   * armorClass field — we have to derive it ourselves.
+   *
+   * DDB armorTypeId: 1=light, 2=medium, 3=heavy, 4=shield
+   */
+  function __computeArmorClassFromRaw(c) {
+    if (!c || typeof c !== 'object') return null;
+    const dexMod = __getStatModFromCharacter(c, 2);
+    const inv = Array.isArray(c.inventory) ? c.inventory : [];
+    let baseArmorAc = null;
+    let armorTypeId = 0;
+    let hasShield = false;
+    for (let i = 0; i < inv.length; i++) {
+      const item = inv[i];
+      if (!item || !item.equipped) continue;
+      const def = item.definition;
+      if (!def || typeof def !== 'object') continue;
+      const isArmor = def.filterType === 'Armor' || def.type === 'Armor' || def.armorTypeId != null;
+      if (!isArmor) continue;
+      const tid = Number(def.armorTypeId) || 0;
+      if (tid === 4 || def.isShield === true) {
+        hasShield = true;
+      } else {
+        const bac = Number(def.baseArmorClass);
+        if (Number.isFinite(bac) && bac > 0) {
+          baseArmorAc = bac;
+          armorTypeId = tid;
+        }
+      }
+    }
+    let ac;
+    if (baseArmorAc !== null) {
+      if (armorTypeId === 1) ac = baseArmorAc + dexMod;
+      else if (armorTypeId === 2) ac = baseArmorAc + Math.min(2, dexMod);
+      else ac = baseArmorAc; // heavy (3) or unknown — no DEX bonus
+    } else {
+      ac = 10 + dexMod; // unarmored base
+    }
+    if (hasShield) ac += 2;
+    // Add flat AC bonuses from all modifier buckets (e.g. Defense fighting style +1)
+    const mods = c.modifiers;
+    if (mods && typeof mods === 'object') {
+      const buckets = Object.keys(mods);
+      for (let bi = 0; bi < buckets.length; bi++) {
+        const arr = mods[buckets[bi]];
+        if (!Array.isArray(arr)) continue;
+        for (let mi = 0; mi < arr.length; mi++) {
+          const m = arr[mi];
+          if (m && m.type === 'bonus' && m.subType === 'armor-class') {
+            ac += Number(m.value) || 0;
+          }
+        }
+      }
+    }
+    return Number.isFinite(ac) ? Math.round(ac) : null;
+  }
+
   function displayArmorClass(c) {
     if (!c || typeof c !== 'object') return '—';
     const keys = ['armorClass', 'calculatedArmorClass', 'armor_class'];
@@ -1206,6 +1265,9 @@
       if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 50) return String(Math.round(v));
       if (typeof v === 'string' && /^\d+$/.test(v.trim())) return v.trim();
     }
+    // Raw endpoints don't provide a computed armorClass — derive it from inventory + modifiers.
+    const computed = __computeArmorClassFromRaw(c);
+    if (computed !== null) return String(computed);
     return String(10 + __getStatModFromCharacter(c, 2));
   }
 
@@ -2023,6 +2085,12 @@
         const legAc = target.armorClass;
         if (typeof legAc === 'number' && Number.isFinite(legAc) && legAc >= 10) continue;
       }
+      if (key === 'overrideHitPoints') {
+        // v5 character-service may return null for overrideHitPoints even when Fixed HP is set;
+        // prefer the legacy value when it is a valid positive number (the Fixed HP setting).
+        const legOv = target.overrideHitPoints;
+        if (typeof legOv === 'number' && Number.isFinite(legOv) && legOv > 0) continue;
+      }
       if (key === 'deathSaveInfo' && lv && typeof lv === 'object' && !Array.isArray(lv)) {
         const prev = target.deathSaveInfo && typeof target.deathSaveInfo === 'object' ? target.deathSaveInfo : {};
         target.deathSaveInfo = Object.assign({}, __cloneJsonValueUsr(prev), __cloneJsonValueUsr(lv));
@@ -2159,18 +2227,23 @@
 
   function hpBoxParts(c) {
     if (!c || typeof c !== 'object') return { cur: '—', max: '—', temp: 0 };
+    // Fixed HP (overrideHitPoints) is a top-level field on the raw character JSON from both
+    // the legacy and v5 endpoints.  The v5 character-service hitPointInfo.maxHitPoints does NOT
+    // apply overrideHitPoints, so we must override it here.
+    const ovRaw = c.overrideHitPoints;
+    const ovNum = Number.isFinite(Number(ovRaw)) && Number(ovRaw) > 0 ? Math.floor(Number(ovRaw)) : null;
     const hpi = c.hitPointInfo;
     if (hpi && typeof hpi === 'object') {
-      const max = Number(
+      let max = Number(
         hpi.maxHitPoints ?? hpi.max ?? hpi.hitPointsMax ?? hpi.maximumHitPoints ?? hpi.hitPointMaximum,
       );
-      const cur = Number(
-        hpi.currentHitPoints ?? hpi.current ?? hpi.hitPoints ?? hpi.hitPointsCurrent ?? hpi.remaining,
-      );
+      if (ovNum !== null) max = ovNum; // Fixed HP overrides v5-computed max
       const tmp = Number(hpi.tempHitPoints ?? hpi.temp ?? hpi.temporaryHitPoints) || 0;
       if (Number.isFinite(max) && max > 0) {
+        // Derive cur from max - removed so it stays consistent when max was corrected above.
+        const rem = Number(hpi.removedHitPoints ?? c.removedHitPoints) || 0;
         return {
-          cur: Number.isFinite(cur) ? String(Math.max(0, Math.floor(cur))) : '—',
+          cur: String(Math.max(0, Math.floor(max - rem))),
           max: String(Math.floor(max)),
           temp: tmp > 0 ? tmp : 0,
         };
@@ -2179,14 +2252,12 @@
     const base = Number(c.baseHitPoints);
     const rem = Number(c.removedHitPoints) || 0;
     const tmp = Number(c.temporaryHitPoints) || 0;
-    const ov = c.overrideHitPoints;
     const max =
-      Number.isFinite(Number(ov)) && Number(ov) > 0
-        ? Math.floor(Number(ov))
+      ovNum !== null
+        ? ovNum
         : Number.isFinite(base) && base >= 0
           ? Math.floor(base)
           : null;
-    /** Use same base as max so overrideHitPoints (Fixed HP) doesn't cause cur < max at full health. */
     const cur = max != null ? Math.max(0, max - rem) : null;
     return {
       cur: cur == null ? '—' : String(cur),
