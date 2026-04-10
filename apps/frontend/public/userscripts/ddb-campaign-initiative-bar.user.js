@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         DDB Campaign — left initiative bar (local)
 // @namespace    https://github.com/your-org/ddb-dm-screen
-// @version      1.6.3
-// @description  Fullscreen DM overlay on /campaigns/*: Start Combat / Next Round initiative flow; ▶ after last turn (all rolls revealed) runs next round; conditions pills; death-save pips; hide totals until turn. Party click-to-turn. Wiki: https://github.com/TeaWithLucas/DNDBeyond-DM-Screen/wiki/Module-output — legacy → v5 → v4. Cobalt 999080.
+// @version      1.6.5
+// @description  Fullscreen DM overlay on /campaigns/*: Start Combat / Next Round initiative flow; Adv/Dis prompt — Yes re-rolls now, No saves mode for next round; ▶ after last revealed turn runs next round; conditions; death-save pips. Party click-to-turn. Wiki: https://github.com/TeaWithLucas/DNDBeyond-DM-Screen/wiki/Module-output — legacy → v5 → v4. Cobalt 999080.
 // @match        https://www.dndbeyond.com/*
 // @match        https://www.dndbeyond.com/
 // @match        https://dndbeyond.com/*
@@ -57,6 +57,10 @@
     condEditorList: null,
     condEditorName: null,
     condEditorDur: null,
+    rerollModeOverlay: null,
+    rerollModeMsg: null,
+    _rerollModeOnYes: null,
+    _rerollModeOnNo: null,
   };
   let condEditorEntryId = null;
   let restoreFab = null;
@@ -1968,6 +1972,12 @@
     return Object.assign({}, state, { entries: ent, markedEntryId: state.markedEntryId ?? null });
   }
 
+  function applyRollModeAndRerollOne(state, entryId, mode) {
+    let s = localSetRollMode(state, entryId, mode);
+    s = localRollInitiative(s, entryId);
+    return sortInitiative(s);
+  }
+
   function entryHasRoll(e) {
     return !!(e && e.rollBreakdown && Array.isArray(e.rollBreakdown.rolls) && e.rollBreakdown.rolls.length);
   }
@@ -2181,6 +2191,40 @@
     if (!visible) condEditorEntryId = null;
   }
 
+  function setRerollModeModalVisible(visible) {
+    const el = initiativeUi.rerollModeOverlay;
+    if (!el) return;
+    el.classList.toggle('dib-modal-overlay--hidden', !visible);
+    if (!visible) {
+      initiativeUi._rerollModeOnYes = null;
+      initiativeUi._rerollModeOnNo = null;
+    }
+  }
+
+  function finishRerollModeConfirm(yes) {
+    const onY = initiativeUi._rerollModeOnYes;
+    const onN = initiativeUi._rerollModeOnNo;
+    initiativeUi._rerollModeOnYes = null;
+    initiativeUi._rerollModeOnNo = null;
+    setRerollModeModalVisible(false);
+    if (yes) {
+      if (typeof onY === 'function') onY();
+    } else {
+      if (typeof onN === 'function') onN();
+    }
+  }
+
+  function openRerollModeConfirm(combatantLabel, onYes, onNo) {
+    const msg = initiativeUi.rerollModeMsg;
+    if (msg) {
+      const lab = String(combatantLabel || 'this character').trim() || 'this character';
+      msg.textContent = 'Do you want to re-roll initiative for ' + lab + ' now? (No saves Adv/Dis for the next round.)';
+    }
+    initiativeUi._rerollModeOnYes = onYes;
+    initiativeUi._rerollModeOnNo = onNo;
+    setRerollModeModalVisible(true);
+  }
+
   function refreshConditionEditorList() {
     const list = initiativeUi.condEditorList;
     if (!list || !condEditorEntryId || !localInitState) return;
@@ -2373,8 +2417,26 @@
     sel.addEventListener('click', (ev) => {
       ev.stopPropagation();
     });
+    let committedMode = e.rollMode || 'normal';
     sel.addEventListener('change', () => {
-      mutateLocalInitiative((st) => localSetRollMode(st, eid, sel.value));
+      const newMode = sel.value;
+      if (newMode === committedMode) return;
+      if (newMode === 'normal') {
+        mutateLocalInitiative((st) => localSetRollMode(st, eid, 'normal'));
+        committedMode = 'normal';
+        return;
+      }
+      openRerollModeConfirm(
+        e.label,
+        () => {
+          committedMode = newMode;
+          mutateLocalInitiative((st) => applyRollModeAndRerollOne(st, eid, newMode));
+        },
+        () => {
+          committedMode = newMode;
+          mutateLocalInitiative((st) => localSetRollMode(st, eid, newMode));
+        },
+      );
     });
     const bRm = document.createElement('button');
     bRm.type = 'button';
@@ -2476,7 +2538,21 @@
     }
     hostEl = null;
     rosterEl = null;
-    initiativeUi = { meta: null, list: null };
+    initiativeUi = {
+      meta: null,
+      list: null,
+      nextRoundBtn: null,
+      confirmStartOverlay: null,
+      condEditorOverlay: null,
+      condEditorTitle: null,
+      condEditorList: null,
+      condEditorName: null,
+      condEditorDur: null,
+      rerollModeOverlay: null,
+      rerollModeMsg: null,
+      _rerollModeOnYes: null,
+      _rerollModeOnNo: null,
+    };
     lastDomIdKey = '';
     removeRestoreFab();
     unlockBodyScrollForOverlay();
@@ -3517,8 +3593,36 @@
     initiativeUi.condEditorName = condNameIn;
     initiativeUi.condEditorDur = condDurIn;
 
+    const rerollOverlay = document.createElement('div');
+    rerollOverlay.className = 'dib-modal-overlay dib-modal-overlay--hidden';
+    const rerollBox = document.createElement('div');
+    rerollBox.className = 'dib-modal';
+    rerollBox.addEventListener('click', (ev) => ev.stopPropagation());
+    const rerollMsg = document.createElement('p');
+    rerollMsg.className = 'dib-modal-msg';
+    rerollMsg.textContent = 'Do you want to re-roll this character?';
+    const rerollActions = document.createElement('div');
+    rerollActions.className = 'dib-modal-actions';
+    const rerollYes = document.createElement('button');
+    rerollYes.type = 'button';
+    rerollYes.textContent = 'Yes';
+    rerollYes.addEventListener('click', () => finishRerollModeConfirm(true));
+    const rerollNo = document.createElement('button');
+    rerollNo.type = 'button';
+    rerollNo.textContent = 'No';
+    rerollNo.addEventListener('click', () => finishRerollModeConfirm(false));
+    rerollActions.appendChild(rerollYes);
+    rerollActions.appendChild(rerollNo);
+    rerollBox.appendChild(rerollMsg);
+    rerollBox.appendChild(rerollActions);
+    rerollOverlay.appendChild(rerollBox);
+    rerollOverlay.addEventListener('click', () => finishRerollModeConfirm(false));
+    initiativeUi.rerollModeOverlay = rerollOverlay;
+    initiativeUi.rerollModeMsg = rerollMsg;
+
     wrap.appendChild(confirmOverlay);
     wrap.appendChild(condOverlay);
+    wrap.appendChild(rerollOverlay);
 
     shadow.appendChild(style);
     shadow.appendChild(wrap);
