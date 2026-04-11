@@ -3478,6 +3478,11 @@
     saveLocalInitiativeState();
     renderLocalInitiativeUi();
     remoteSync.pushState(localInitState);
+    // trigger animation for first player (startCombat bypasses mutateLocalInitiative diff)
+    if (s.turnOrder.length) {
+      var t = setTimeout(function () { triggerDiceAnimations(s, [s.turnOrder[0]]); }, 50);
+      _diceAddTimer(t);
+    }
   }
 
   var COND_ABBREV = {
