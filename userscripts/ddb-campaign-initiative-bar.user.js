@@ -782,65 +782,131 @@
    * @see https://github.com/TeaWithLucas/DNDBeyond-DM-Screen/wiki/Module-output
    */
   let __cachedRuleData = null;
-  const RULE_DATA_URL = 'https://character-service.dndbeyond.com/character/v4/rule-data';
-
-  /**
-   * Build a TeaWithLucas-compatible state object from raw character JSON + rule data,
-   * then call the character-tools rules engine to compute AC, HP, etc.
-   */
-  function __computeViaRulesEngine(rawChar) {
-    if (!rawChar || typeof rawChar !== 'object') return null;
-    // If TeaWithLucas DM Screen is running, moduleExport.getCharData is available.
-    try {
-      const me = SW.moduleExport;
-      if (me && typeof me.getCharData === 'function') {
-        const state = {
-          appEnv: {
-            characterId: rawChar.id,
-            characterServiceBaseUrl: null,
-            diceEnabled: false,
-            isMobile: false,
-            isReadonly: true,
-          },
-          appInfo: { error: null },
-          character: rawChar,
-          characterEnv: { context: 'SHEET', isReadonly: true, loadingStatus: 'LOADED' },
-          ruleData: __cachedRuleData || {},
-          serviceData: {
-            classAlwaysKnownSpells: {},
-            classAlwaysPreparedSpells: {},
-            definitionPool: {},
-            infusionsMappings: [],
-            knownInfusionsMappings: [],
-            ruleDataPool: {},
-            vehicleComponentMappings: [],
-            vehicleMappings: [],
-          },
-          confirmModal: { modals: [] },
-          modal: { open: {} },
-          sheet: { initError: null, initFailed: false },
-          sidebar: { activePaneId: null, alignment: 'right', isLocked: false, isVisible: false, panes: [], placement: 'overlay', width: 340 },
-          syncTransaction: { active: false, initiator: null },
-          toastMessage: {},
-        };
-        const computed = me.getCharData(state);
-        if (computed && typeof computed === 'object') return computed;
-      }
-    } catch (e) {
-      console.warn('[ddb-init-bar] rules engine via moduleExport failed', e);
-    }
-    return null;
-  }
+  let __cachedVehiclesRuleData = null;
+  const V5_RULE_DATA_URL = 'https://character-service.dndbeyond.com/character/v5/rule-data';
+  const VEHICLES_RULE_DATA_URL = 'https://gamedata-service.dndbeyond.com/vehicles/v3/rule-data';
+  const GAME_DATA_BASE = 'https://character-service.dndbeyond.com/character/v5/game-data/';
+  const OPTIONAL_RULES = {
+    optionalOrigins: { category: 'racial-trait', id: 'racialTraitId' },
+    optionalClassFeatures: { category: 'class-feature', id: 'classFeatureId' },
+  };
 
   async function __ensureRuleDataCached() {
     if (__cachedRuleData) return;
     try {
-      const r = await fetch(RULE_DATA_URL, { credentials: 'include' });
-      if (r.ok) {
-        const j = await r.json();
-        if (j && j.data) __cachedRuleData = j.data;
-      }
+      const [r1, r2] = await Promise.all([
+        fetch(V5_RULE_DATA_URL, { credentials: 'include' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+        fetch(VEHICLES_RULE_DATA_URL, { credentials: 'include' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+      ]);
+      if (r1 && r1.data) __cachedRuleData = r1.data;
+      if (r2 && r2.data) __cachedVehiclesRuleData = r2.data;
     } catch (_) {}
+  }
+
+  /**
+   * Fetch optional character-specific rules (optional origins / class features) and populate
+   * the definitionPool exactly like the ootz0rz/TeaWithLucas GM Screen does.
+   */
+  async function __fetchOptionalCharRules(rawChar, serviceData) {
+    if (!rawChar || typeof rawChar !== 'object') return;
+    const keys = Object.keys(OPTIONAL_RULES);
+    const fetches = [];
+    for (let ki = 0; ki < keys.length; ki++) {
+      const ruleKey = keys[ki];
+      const cfg = OPTIONAL_RULES[ruleKey];
+      const arr = rawChar[ruleKey];
+      if (!Array.isArray(arr) || arr.length === 0) continue;
+      const ids = [];
+      for (let ai = 0; ai < arr.length; ai++) {
+        const v = arr[ai] && arr[ai][cfg.id];
+        if (v != null) ids.push(v);
+      }
+      if (!ids.length) continue;
+      if (!serviceData.definitionPool[cfg.category]) {
+        serviceData.definitionPool[cfg.category] = { accessTypeLookup: {}, definitionLookup: {} };
+      }
+      const pool = serviceData.definitionPool[cfg.category];
+      fetches.push(
+        fetch(GAME_DATA_BASE + cfg.category + '/collection', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaignId: null, sharingSetting: 2, ids: ids }),
+        })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            if (j && j.success && j.data && Array.isArray(j.data.definitionData)) {
+              for (let di = 0; di < j.data.definitionData.length; di++) {
+                var d = j.data.definitionData[di];
+                pool.definitionLookup[d.id] = d;
+                pool.accessTypeLookup[d.id] = 1;
+              }
+            }
+          })
+          .catch(function () {}),
+      );
+    }
+    if (fetches.length) await Promise.all(fetches);
+  }
+
+  /**
+   * Build a state object matching ootz0rz/TeaWithLucas format, then call the character-tools
+   * rules engine to compute AC, HP, etc.
+   * @see https://github.com/TeaWithLucas/DNDBeyond-DM-Screen/wiki/Module-output
+   */
+  async function __computeViaRulesEngine(rawChar) {
+    if (!rawChar || typeof rawChar !== 'object') return null;
+    try {
+      const me = SW.moduleExport;
+      if (!me || typeof me.getCharData !== 'function') return null;
+      const serviceData = {
+        classAlwaysKnownSpells: {},
+        classAlwaysPreparedSpells: {},
+        definitionPool: {},
+        infusionsMappings: [],
+        knownInfusionsMappings: [],
+        ruleDataPool: __cachedVehiclesRuleData || {},
+        vehicleComponentMappings: [],
+        vehicleMappings: [],
+      };
+      // Populate optional class feature / racial trait definitions.
+      await __fetchOptionalCharRules(rawChar, serviceData);
+      const state = {
+        appEnv: {
+          authEndpoint: 'https://auth-service.dndbeyond.com/v1/cobalt-token',
+          characterEndpoint: '',
+          characterId: rawChar.id,
+          characterServiceBaseUrl: null,
+          diceEnabled: true,
+          diceFeatureConfiguration: {
+            apiEndpoint: 'https://dice-service.dndbeyond.com',
+            assetBaseLocation: 'https://www.dndbeyond.com/dice',
+            enabled: true, menu: true, notification: false, trackingId: '',
+          },
+          dimensions: { sheet: { height: 0, width: 1200 }, styleSizeType: 4, window: { height: 571, width: 1920 } },
+          isMobile: false,
+          isReadonly: true,
+          redirect: undefined,
+          username: 'example',
+        },
+        appInfo: { error: null },
+        character: rawChar,
+        characterEnv: { context: 'SHEET', isReadonly: true, loadingStatus: 'LOADED' },
+        confirmModal: { modals: [] },
+        modal: { open: {} },
+        ruleData: __cachedRuleData || {},
+        serviceData: serviceData,
+        sheet: { initError: null, initFailed: false },
+        sidebar: { activePaneId: null, alignment: 'right', isLocked: false, isVisible: false, panes: [], placement: 'overlay', width: 340 },
+        syncTransaction: { active: false, initiator: null },
+        toastMessage: {},
+      };
+      const computed = me.getCharData(state);
+      if (computed && typeof computed === 'object') return computed;
+    } catch (e) {
+      console.warn('[ddb-init-bar] rules engine via moduleExport failed', e);
+    }
+    return null;
   }
 
   async function resolveDdbAuthHeaders() {
@@ -907,16 +973,27 @@
     const leg = legPlural || legSingular;
     let u = leg && svc ? mergeDdbLegacyAndV5Character(leg, svc) : leg || svc;
     if (!u) u = await tryGet(V4_CHAR_BASE + charId + '?_ts=' + ts, false);
-    // Try to compute AC / HP / etc. via the character-tools rules engine
-    // (same approach as TeaWithLucas DM Screen — uses moduleExport.getCharData).
+    // Compute AC / HP / passives via DDB's own character-tools rules engine
+    // (same approach as ootz0rz / TeaWithLucas DM Screen — moduleExport.getCharData).
     if (u) {
-      await __ensureRuleDataCached();
-      const computed = __computeViaRulesEngine(u);
-      if (computed) {
-        if (typeof computed.armorClass === 'number') u.armorClass = computed.armorClass;
-        if (computed.hitPointInfo && typeof computed.hitPointInfo === 'object') {
-          u.hitPointInfo = Object.assign({}, u.hitPointInfo || {}, computed.hitPointInfo);
+      try {
+        await __ensureRuleDataCached();
+        const computed = await __computeViaRulesEngine(u);
+        if (computed) {
+          if (typeof computed.armorClass === 'number') u.armorClass = computed.armorClass;
+          if (computed.hitPointInfo && typeof computed.hitPointInfo === 'object') {
+            u.hitPointInfo = Object.assign({}, u.hitPointInfo || {}, computed.hitPointInfo);
+          }
+          if (typeof computed.passivePerception === 'number') u.passivePerception = computed.passivePerception;
+          if (typeof computed.passiveInvestigation === 'number') u.passiveInvestigation = computed.passiveInvestigation;
+          if (typeof computed.passiveInsight === 'number') u.passiveInsight = computed.passiveInsight;
+          if (typeof computed.inspiration === 'boolean') u.inspiration = computed.inspiration;
+          if (typeof computed.proficiencyBonus === 'number') u.proficiencyBonus = computed.proficiencyBonus;
+          if (computed.spellCasterInfo) u.spellCasterInfo = computed.spellCasterInfo;
+          if (Array.isArray(computed.conditions)) u.conditions = computed.conditions;
         }
+      } catch (e) {
+        console.warn('[ddb-init-bar] rules engine enrichment failed — using raw data', e);
       }
     }
     return u;
