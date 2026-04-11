@@ -1207,7 +1207,7 @@
       const dsCol = document.createElement('div');
       dsCol.className = 'dib-pc-death-saves';
       const dsTitle = document.createElement('div');
-      dsTitle.className = 'dib-pc-death-saves-title';
+      dsTitle.className = 'dib-pc-section-title';
       dsTitle.textContent = 'Death saves';
       const dsFlex = document.createElement('div');
       dsFlex.className = 'dib-pc-ds-flex';
@@ -1278,6 +1278,10 @@
       if (c) {
         const pcCondLabs = extractDdbConditionLabels(c);
         if (pcCondLabs.length) {
+          const pcCondTitle = document.createElement('div');
+          pcCondTitle.className = 'dib-pc-section-title';
+          pcCondTitle.textContent = 'Conditions';
+          stack.appendChild(pcCondTitle);
           const pcCondRow = document.createElement('div');
           pcCondRow.className = 'dib-pc-cond-row';
           for (let pci = 0; pci < pcCondLabs.length; pci++) {
@@ -1285,12 +1289,7 @@
             pill.className = 'dib-pc-inline-cond-pill';
             const full = pcCondLabs[pci];
             pill.title = full;
-            const iconEl = conditionIconEl(full);
-            if (iconEl) {
-              pill.appendChild(iconEl);
-            } else {
-              pill.textContent = '[' + abbrevConditionLabel(full) + ']';
-            }
+            pill.textContent = '[' + abbrevConditionLabel(full) + ']';
             pcCondRow.appendChild(pill);
           }
           stack.appendChild(pcCondRow);
@@ -2244,38 +2243,6 @@
     const lv = o.level;
     if (lv !== null && lv !== undefined && typeof lv !== 'number') return false;
     return true;
-  }
-
-  /** Inline SVG icons for the standard 5e conditions (viewBox 0 0 16 16, currentColor). */
-  const COND_ICONS = {
-    blinded:       '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><ellipse cx="8" cy="8.5" rx="5.5" ry="3.5"/><circle cx="8" cy="8.5" r="1.5" fill="currentColor" stroke="none"/><line x1="3" y1="3" x2="13" y2="14"/></svg>',
-    charmed:       '<svg viewBox="0 0 16 16" width="13" height="13"><path d="M8 13C8 13 2.5 9 2.5 5.5C2.5 3.6 4 2.5 5.5 2.5C6.8 2.5 8 3.8 8 3.8S9.2 2.5 10.5 2.5C12 2.5 13.5 3.6 13.5 5.5C13.5 9 8 13 8 13Z" fill="currentColor"/></svg>',
-    deafened:      '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M5 7C5 4.8 6.8 3 9 3C11.2 3 13 4.8 13 7C13 9 11.5 10.5 11.5 12H6.5"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="2" y1="2" x2="14" y2="14"/></svg>',
-    exhaustion:    '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 8h10M3 5h7M3 11h5"/></svg>',
-    frightened:    '<svg viewBox="0 0 16 16" width="13" height="13"><path d="M8 1C5.5 1 3 3.5 3 7C3 10 4.5 12 4.5 14H6V12.5H7.5V14H8.5V12.5H10V14H11.5C11.5 12 13 10 13 7C13 3.5 10.5 1 8 1Z" fill="currentColor"/><circle cx="6" cy="7" r="1" fill="white"/><circle cx="10" cy="7" r="1" fill="white"/></svg>',
-    grappled:      '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12C4 12 4 9 6 8C8 7 9 8 9 8L12 5"/><path d="M10 4L12 4L12 6"/><path d="M5 5C5 5 5 3 7 3C9 3 9 5 9 5"/></svg>',
-    incapacitated: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="4" r="2"/><path d="M5 8h6"/><path d="M8 8v5"/><path d="M5 13l3-2 3 2"/></svg>',
-    invisible:     '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="2 2"><ellipse cx="8" cy="8.5" rx="5.5" ry="3.5"/><circle cx="8" cy="8.5" r="1.5"/></svg>',
-    paralyzed:     '<svg viewBox="0 0 16 16" width="13" height="13"><path d="M8 2L5.5 7.5H7V14L10.5 7.5H9Z" fill="currentColor"/></svg>',
-    petrified:     '<svg viewBox="0 0 16 16" width="13" height="13"><path d="M8 2L5 6H6.5L4 10H7.5L6 14H10L8.5 10H12L9.5 6H11Z" fill="currentColor"/></svg>',
-    poisoned:      '<svg viewBox="0 0 16 16" width="13" height="13"><circle cx="8" cy="7" r="5" fill="currentColor"/><circle cx="5.5" cy="5.5" r="1.2" fill="white"/><circle cx="10.5" cy="5.5" r="1.2" fill="white"/><path d="M6 9.5C6 9.5 7 11 8 9.5C9 8 10 9.5 10 9.5" fill="none" stroke="white" stroke-width="1.2" stroke-linecap="round"/><path d="M6.5 1.5L8 3L9.5 1.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
-    prone:         '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="4" cy="4" r="1.5" fill="currentColor" stroke="none"/><path d="M4 6V9L7 10L11 12"/><path d="M4 9L2 11"/></svg>',
-    restrained:    '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="5" cy="5" r="2"/><circle cx="11" cy="11" r="2"/><line x1="7" y1="5" x2="9" y2="11"/></svg>',
-    stunned:       '<svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><path d="M8 2L9 5H12.5L9.5 7L10.5 10.5L8 8.5L5.5 10.5L6.5 7L3.5 5H7Z"/></svg>',
-    unconscious:   '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="4" r="2"/><path d="M5 9C5 7.3 6.3 6 8 6C9.7 6 11 7.3 11 9"/><path d="M4 13C4 11 5.8 9 8 9C10.2 9 12 11 12 13"/><line x1="5" y1="2" x2="7" y2="3"/><line x1="11" y1="2" x2="9" y2="3"/></svg>',
-  };
-
-  /** Return the SVG icon element for a condition name, or null if not in map. */
-  function conditionIconEl(label) {
-    const key = String(label).toLowerCase().replace(/\s+/g, '').replace(/[^a-z]/g, '');
-    // Handle "exhaustion N" — strip trailing digit
-    const baseKey = key.replace(/\d+$/, '');
-    const svg = COND_ICONS[key] || COND_ICONS[baseKey] || null;
-    if (!svg) return null;
-    const wrap = document.createElement('span');
-    wrap.innerHTML = svg;
-    wrap.className = 'dib-cond-icon';
-    return wrap;
   }
 
   function ddbConditionEntryToLabel(x) {
@@ -3404,29 +3371,17 @@
       if (trackerAbbrevs.has(sab)) continue;
       const sp = document.createElement('span');
       sp.className = 'dib-init-cond-pill dib-init-cond-pill--ddb';
+      sp.textContent = '[' + sab + ']';
       sp.title = slab + ' (from sheet)';
-      const iconEl = conditionIconEl(slab);
-      if (iconEl) {
-        sp.appendChild(iconEl);
-      } else {
-        sp.textContent = '[' + sab + ']';
-      }
       condRow.appendChild(sp);
     }
 
     // Tracker-editable conditions.
     const conds = Array.isArray(e.conditions) ? e.conditions : [];
     for (let ci = 0; ci < conds.length; ci++) {
-      const cName = (conds[ci] && conds[ci].name) ? conds[ci].name : String(conds[ci] || '');
       const pill = document.createElement('span');
       pill.className = 'dib-init-cond-pill';
-      pill.title = formatConditionPillText(conds[ci]);
-      const iconEl = conditionIconEl(cName);
-      if (iconEl) {
-        pill.appendChild(iconEl);
-      } else {
-        pill.appendChild(document.createTextNode(formatConditionPillText(conds[ci])));
-      }
+      pill.appendChild(document.createTextNode(formatConditionPillText(conds[ci]) + '\u00a0'));
       const bx = document.createElement('button');
       bx.type = 'button';
       bx.className = 'dib-init-cond-pill-x';
@@ -3932,6 +3887,7 @@
       .dib-init-cond-row {
         display: flex;
         flex-wrap: wrap;
+        justify-content: center;
         gap: 4px 6px;
         padding: 5px 10px 6px 10px;
         border-top: 1px solid rgba(255,255,255,.07);
@@ -3950,36 +3906,29 @@
         color: #7dd3fc;
         line-height: 1.2;
       }
-      .dib-cond-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        line-height: 1;
-      }
-      .dib-cond-icon svg { display: block; }
       .dib-init-cond-pill {
         display: inline-flex;
         align-items: center;
-        gap: 2px;
+        gap: 1px;
         font-size: var(--dib-init-cond-size, 9px);
         font-weight: 700;
         letter-spacing: 0.04em;
-        padding: 3px 4px;
+        padding: 1px 4px 1px 5px;
         border-radius: 4px;
         background: rgba(201,169,98,.14);
         border: 1px solid rgba(201,169,98,.32);
         color: #e7d5a0;
-        line-height: 1;
+        line-height: 1.2;
       }
       .dib-init-cond-pill-x {
         cursor: pointer;
         border: none;
         background: transparent;
         color: inherit;
-        font-size: 10px;
+        font-size: 11px;
         line-height: 1;
         padding: 0 0 0 1px;
-        opacity: 0.7;
+        opacity: 0.8;
       }
       .dib-init-cond-pill-x:hover { opacity: 1; color: #fff; }
       .dib-modal-overlay {
@@ -4218,20 +4167,18 @@
       .dib-pc-cond-row {
         display: flex;
         flex-wrap: wrap;
+        justify-content: center;
         gap: 4px 5px;
         padding: 5px 8px 6px 8px;
         border-top: 1px solid rgba(255,255,255,.07);
       }
       .dib-pc-cond-row:empty { display: none; }
       .dib-pc-inline-cond-pill {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
         font-size: 8px;
         font-weight: 700;
         letter-spacing: 0.05em;
-        padding: 4px;
-        border-radius: 6px;
+        padding: 2px 5px;
+        border-radius: 999px;
         background: rgba(61,214,199,.12);
         border: 1px solid rgba(61,214,199,.35);
         color: var(--pc-teal);
@@ -4358,14 +4305,6 @@
       }
       .dib-pc-death-saves {
         flex-shrink: 0;
-      }
-      .dib-pc-death-saves-title {
-        font-size: 8px;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.14em;
-        color: var(--pc-gold-dim);
-        margin-bottom: 6px;
       }
       .dib-pc-ds-flex {
         display: flex;
