@@ -156,7 +156,7 @@
   };
 
   function defaultBarSettings() {
-    return { theme: 'crimson', density: 'comfortable', badgeFill: '#ffffff', badgeIcon: '#f5f5f4', badgeText: '#1c1917' };
+    return { theme: 'crimson', density: 'comfortable', badgeFill: '#ffffff', badgeIcon: '#f5f5f4', badgeText: '#1c1917', firstNameOnly: true };
   }
 
   function loadBarSettings() {
@@ -203,6 +203,7 @@
       wrapEl.style.setProperty('--dib-init-row-minheight', '66px');
       wrapEl.style.setProperty('--dib-init-row-pad', '8px 8px 8px 6px');
       wrapEl.style.setProperty('--dib-init-name-size', '12px');
+      wrapEl.style.setProperty('--dib-init-firstname-size', 'clamp(13px, 3.5vw, 19px)');
       wrapEl.style.setProperty('--dib-init-rank-size', '13px');
       wrapEl.style.setProperty('--dib-init-total-size', '22px');
       wrapEl.style.setProperty('--dib-init-cond-size', '8px');
@@ -222,6 +223,7 @@
       wrapEl.style.setProperty('--dib-init-row-minheight', '112px');
       wrapEl.style.setProperty('--dib-init-row-pad', '18px 14px 18px 10px');
       wrapEl.style.setProperty('--dib-init-name-size', '18px');
+      wrapEl.style.setProperty('--dib-init-firstname-size', 'clamp(20px, 5.5vw, 34px)');
       wrapEl.style.setProperty('--dib-init-rank-size', '19px');
       wrapEl.style.setProperty('--dib-init-total-size', '38px');
       wrapEl.style.setProperty('--dib-init-cond-size', '11px');
@@ -241,6 +243,7 @@
       wrapEl.style.setProperty('--dib-init-row-minheight', '84px');
       wrapEl.style.setProperty('--dib-init-row-pad', '12px 10px 12px 8px');
       wrapEl.style.setProperty('--dib-init-name-size', '14px');
+      wrapEl.style.setProperty('--dib-init-firstname-size', 'clamp(16px, 4.5vw, 26px)');
       wrapEl.style.setProperty('--dib-init-rank-size', '15px');
       wrapEl.style.setProperty('--dib-init-total-size', '28px');
       wrapEl.style.setProperty('--dib-init-cond-size', '9px');
@@ -275,6 +278,10 @@
     for (let i = 0; i < densityBtns.length; i++) {
       const el = densityBtns[i];
       el.classList.toggle('dib-settings-density-btn--active', el.getAttribute('data-dib-density') === settings.density);
+    }
+    const fnToggle = settingsPanelEl.querySelector('[data-dib-firstname-toggle]');
+    if (fnToggle) {
+      fnToggle.classList.toggle('dib-settings-density-btn--active', settings.firstNameOnly !== false);
     }
   }
 
@@ -3349,7 +3356,14 @@
     nameRow.className = 'dib-init-name-row';
     const nameEl = document.createElement('div');
     nameEl.className = 'dib-init-name';
-    nameEl.textContent = e.label;
+    const useFirstName = barSettings.firstNameOnly !== false;
+    if (useFirstName) {
+      const firstName = String(e.label || '').trim().split(/\s+/)[0] || e.label;
+      nameEl.textContent = firstName;
+      nameEl.setAttribute('data-dib-first-name', 'true');
+    } else {
+      nameEl.textContent = e.label;
+    }
     nameRow.appendChild(nameEl);
     const partyC = e.entityId != null && e.entityId !== '' ? partyById[String(e.entityId)] : null;
     if (partyC && partyC.inspiration) card.classList.add('dib-init-card--inspired');
@@ -3882,6 +3896,11 @@
         word-break: break-word;
         flex: 0 1 auto;
         min-width: 0;
+      }
+      .dib-init-name[data-dib-first-name] {
+        font-size: var(--dib-init-firstname-size, clamp(16px, 4.5vw, 26px));
+        line-height: 1.1;
+        letter-spacing: 0.01em;
       }
       .dib-init-body--click { cursor: pointer; }
       .dib-init-cond-row {
@@ -4938,6 +4957,36 @@
     densityRow.appendChild(makeDensityBtn('large', 'Large', 'Maximum size portraits & text'));
     densitySection.appendChild(densityRow);
     settingsBody.appendChild(densitySection);
+
+    /** Name Display section */
+    const nameDispSection = document.createElement('div');
+    const nameDispTitle = document.createElement('div');
+    nameDispTitle.className = 'dib-settings-section-title';
+    nameDispTitle.textContent = 'Name Display';
+    nameDispSection.appendChild(nameDispTitle);
+    const nameDispRow = document.createElement('div');
+    nameDispRow.className = 'dib-settings-density-row';
+    const fnBtn = document.createElement('button');
+    fnBtn.type = 'button';
+    fnBtn.className = 'dib-settings-density-btn' + (barSettings.firstNameOnly !== false ? ' dib-settings-density-btn--active' : '');
+    fnBtn.setAttribute('data-dib-firstname-toggle', 'true');
+    const fnLbl = document.createElement('span');
+    fnLbl.textContent = 'First Name Only';
+    const fnHint = document.createElement('span');
+    fnHint.className = 'dib-settings-density-hint';
+    fnHint.textContent = 'Larger auto-scaled name';
+    fnBtn.appendChild(fnLbl);
+    fnBtn.appendChild(fnHint);
+    fnBtn.addEventListener('click', () => {
+      barSettings.firstNameOnly = barSettings.firstNameOnly === false ? true : false;
+      saveBarSettings();
+      applyBarSettings(barSettings, wrap);
+      refreshSettingsPanelActiveStates(barSettings);
+      renderLocalInitiativeUi();
+    });
+    nameDispRow.appendChild(fnBtn);
+    nameDispSection.appendChild(nameDispRow);
+    settingsBody.appendChild(nameDispSection);
 
     /** Icon colours section */
     const badgeColSection = document.createElement('div');
