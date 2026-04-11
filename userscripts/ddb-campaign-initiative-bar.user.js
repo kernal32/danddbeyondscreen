@@ -1157,6 +1157,12 @@
           'M175 665L1625 665"/>' +
       '</svg>';
 
+    const SVG_INSPIRATION =
+      '<svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+        '<path d="M12 1L13.5 8.5L20.5 6L16.5 12L20.5 18L13.5 15.5L12 23L10.5 15.5L3.5 18L7.5 12L3.5 6L10.5 8.5Z"/>' +
+        '<circle cx="12" cy="12" r="2.4"/>' +
+      '</svg>';
+
     function makeStatBadge(kind, svgHtml, valueMain, valueSub, ribbonLabel) {
       const wrap = document.createElement('div');
       wrap.className = 'dib-pc-stat-badge dib-pc-stat-badge--' + kind;
@@ -1190,6 +1196,12 @@
       const card = document.createElement('div');
       card.className = 'dib-party-card' + (c && c.inspiration ? ' dib-party-card--inspired' : '');
       card.setAttribute('data-ddb-char-id', String(id));
+      if (c && c.inspiration) {
+        const inspIcon = document.createElement('div');
+        inspIcon.className = 'dib-pc-insp-icon';
+        inspIcon.innerHTML = SVG_INSPIRATION;
+        card.appendChild(inspIcon);
+      }
       card.addEventListener('click', function partyCardInitJump() {
         if (!localInitState || !localInitState.turnOrder.length) return;
         const ok = localInitState.turnOrder.some(function (tid) {
@@ -1262,6 +1274,10 @@
         if (pcCondLabs.length) {
           const pcCondRow = document.createElement('div');
           pcCondRow.className = 'dib-pc-cond-row';
+          const pcCondLabel = document.createElement('span');
+          pcCondLabel.className = 'dib-pc-cond-label';
+          pcCondLabel.textContent = 'Conditions';
+          pcCondRow.appendChild(pcCondLabel);
           for (let pci = 0; pci < pcCondLabs.length; pci++) {
             const pill = document.createElement('span');
             pill.className = 'dib-pc-inline-cond-pill';
@@ -3234,18 +3250,41 @@
     remoteSync.pushState(localInitState);
   }
 
+  var COND_ABBREV = {
+    'BLINDED':        'BLND',
+    'CHARMED':        'CHRM',
+    'DEAFENED':       'DEAF',
+    'EXHAUSTION':     'EXHST',
+    'FRIGHTENED':     'FRGHT',
+    'GRAPPLED':       'GRPL',
+    'INCAPACITATED':  'INCAP',
+    'INVISIBLE':      'INVIS',
+    'PARALYZED':      'PARA',
+    'PETRIFIED':      'PETR',
+    'POISONED':       'POIS',
+    'PRONE':          'PRONE',
+    'RESTRAINED':     'RSTR',
+    'STUNNED':        'STUN',
+    'UNCONSCIOUS':    'UNCON',
+    'CONCENTRATION':  'CONC',
+    'DEAD':           'DEAD',
+    'DYING':          'DYING',
+    'STABLE':         'STBL',
+  };
   function abbrevConditionLabel(name) {
     const t = String(name || '').trim().toUpperCase();
     const m = t.match(/^([A-Z][A-Z\s]*)(\d+)$/);
     if (m) {
       const letters = m[1].replace(/\s+/g, '');
       const num = m[2];
-      const abbr = letters.length <= 4 ? letters : letters.slice(0, 4);
+      const known = COND_ABBREV[letters];
+      const abbr = known || (letters.length <= 5 ? letters : letters.slice(0, 5));
       return abbr + num;
     }
     const flat = t.replace(/\s+/g, '');
-    if (flat.length <= 4) return flat;
-    return flat.slice(0, 4);
+    if (COND_ABBREV[flat]) return COND_ABBREV[flat];
+    if (flat.length <= 5) return flat;
+    return flat.slice(0, 5);
   }
 
   function formatConditionPillText(c) {
@@ -4406,11 +4445,23 @@
       .dib-pc-cond-row {
         display: flex;
         flex-wrap: wrap;
+        align-items: center;
         justify-content: flex-start;
-        gap: 4px 5px;
+        gap: 4px 6px;
         padding: 4px 0 0;
       }
       .dib-pc-cond-row:empty { display: none; }
+      .dib-pc-cond-label {
+        flex-shrink: 0;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        color: var(--dib-frame-gold, #d4a843);
+        font-family: var(--dib-heading-font, 'Cinzel', Georgia, serif);
+        text-shadow: 0 1px 0 rgba(0,0,0,.8);
+        margin-right: 2px;
+      }
       .dib-pc-inline-cond-pill {
         font-size: 9px;
         font-weight: 700;
@@ -5103,6 +5154,26 @@
         width: 8px;
         background: var(--dib-wood-dark, #1c1008);
         clip-path: polygon(0 0, 0 100%, 100% 50%);
+      }
+
+      /* ===== INSPIRATION ICON ===== */
+      .dib-pc-insp-icon {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 40px;
+        height: 40px;
+        color: var(--dib-frame-gold, #d4a843);
+        filter: drop-shadow(0 0 6px rgba(212,168,67,.95))
+                drop-shadow(0 0 14px rgba(212,168,67,.55));
+        animation: dib-inspire-shimmer 3s ease-in-out infinite;
+        pointer-events: none;
+        z-index: 2;
+      }
+      .dib-pc-insp-icon svg {
+        width: 100%;
+        height: 100%;
+        display: block;
       }
     `;
 
