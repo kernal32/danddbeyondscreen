@@ -3594,7 +3594,19 @@
     if (reveal) {
       if (bd && bd.rolls && bd.rolls.length) {
         const kept = bd.kept != null ? bd.kept : bd.rolls[bd.rolls.length - 1];
-        rollLine.textContent = 'Roll ' + kept + ' ' + fmtSignedMod(modUsed);
+        if (bd.rolls.length === 2) {
+          rollLine.appendChild(document.createTextNode('Roll '));
+          bd.rolls.forEach(function (r, i) {
+            if (i > 0) rollLine.appendChild(document.createTextNode(' / '));
+            const s = document.createElement('span');
+            s.textContent = String(r);
+            if (r !== kept) s.className = 'dib-init-roll--dropped';
+            rollLine.appendChild(s);
+          });
+          rollLine.appendChild(document.createTextNode(' ' + fmtSignedMod(modUsed)));
+        } else {
+          rollLine.textContent = 'Roll ' + kept + ' ' + fmtSignedMod(modUsed);
+        }
       } else {
         rollLine.textContent = 'Mod ' + fmtSignedMod(e.mod);
       }
@@ -4318,6 +4330,10 @@
         font-size: 11px;
         color: #94a3b8;
         line-height: 1.35;
+      }
+      .dib-init-roll--dropped {
+        opacity: 0.38;
+        text-decoration: line-through;
       }
       .dib-init-tie {
         font-size: 10px;

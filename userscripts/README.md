@@ -21,29 +21,35 @@ A standalone Tampermonkey / Violentmonkey userscript that adds a **full-screen D
 ### Initiative Tracker (left panel)
 
 - **Start Combat** — builds combatants from the live party roster, rolls initiative for each using their DDB modifier (DEX + proficiency + flat bonuses)
-- Per-entry **advantage / disadvantage** selector with confirmation
+- Per-entry **advantage / disadvantage** selector; both d20 results are shown with the dropped roll struck through and dimmed
 - **Prev / Next turn** navigation with round counter and active-turn highlight
-- Conditions per combatant (add / remove); death save tracking
-- Roll breakdown shown below the character name; large initiative total on the right
+- **Click any card to jump to that combatant's turn** — all rolls up to that point are revealed automatically
+- **Combat Time** counter in the footer (Round × 6 seconds), formatted as `Xm Ys` once over a minute; resets when a new combat starts
+- Roll breakdown (`ROLL 17 / ~~8~~ +3`) displayed beneath the character name; large initiative total on the right
+- Knocked-out overlay ("ZzZ") on portrait when a combatant's HP reaches 0
+- Controls (Start Combat, Next Round, arrows, Clear) anchored to the bottom of the panel so initiative cards align with the party cards
 - State persists across page reloads via `localStorage` (`ddbCampaignInitBarInitiativeV1`)
 
 ### Party Cards (right panel, live)
 
-Party data is polled from the DDB character API approximately every **60 seconds**; click **↻ Refresh** in the header to force an immediate update.
+Party data is polled from the DDB character API approximately every **60 seconds**; click **↻ Refresh** (top-right header) to force an immediate update.
+
+Cards stretch vertically to fill the screen height, aligned across all rows.
 
 Each card displays:
 
 | Stat | Detail |
 |---|---|
-| HP | Current / max; temp HP sub-label; **low-HP pulse** at ≤ 25 %, **critical pulse** at ≤ 10 % |
+| HP | Total hit points as a large number; temporary HP overrides the display when present; **low-HP pulse** at ≤ 25 %, **critical pulse** at ≤ 10 % |
 | AC | Armor Class |
 | Spell Save DC | Shown when the character has spellcasting |
-| Passives | Perception, Investigation, Insight |
+| Passives | Perception, Investigation, Insight — icon + gold label below the number |
 | Spell slots | Diamond pips per level |
-| Class resources | Pips for features like Ki, Rage, Lay on Hands pool |
-| Conditions | Inline badges from the DDB character sheet |
+| Class resources | Pips for features with ≤ 4 charges; `used/total` count for larger pools (e.g. 6/10) |
+| Conditions | Inline badges with full abbreviations (INVIS, BLND, etc.) and a CONDITIONS label |
 | Death saves | Success / failure pips |
-| Inspiration | Gold shimmer on the card |
+| Inspiration | Glowing 8-pointed star icon in the top-right corner when active |
+| Knocked-out | "ZzZ" overlay on portrait when HP reaches 0 |
 
 ### Settings Panel
 
