@@ -204,7 +204,7 @@
   };
 
   function defaultBarSettings() {
-    return { theme: 'crimson', density: 'comfortable', badgeFill: '#ffffff', badgeIcon: '#f5f5f4', badgeText: '#1c1917', firstNameOnly: true };
+    return { theme: 'crimson', density: 'comfortable', badgeFill: '#ffffff', badgeIcon: '#f5f5f4', badgeText: '#1c1917', firstNameOnly: true, diceAnimations: true };
   }
 
   function loadBarSettings() {
@@ -327,6 +327,10 @@
     const fnToggle = settingsPanelEl.querySelector('[data-dib-firstname-toggle]');
     if (fnToggle) {
       fnToggle.classList.toggle('dib-settings-density-btn--active', settings.firstNameOnly !== false);
+    }
+    const diceToggle = settingsPanelEl.querySelector('[data-dib-dice-anim-toggle]');
+    if (diceToggle) {
+      diceToggle.classList.toggle('dib-settings-density-btn--active', settings.diceAnimations !== false);
     }
   }
 
@@ -3220,11 +3224,221 @@
     } catch (_) {}
   }
 
+  /* ===== DICE ANIMATION SYSTEM ===== */
+  var _diceAnimState = {
+    layer: null,
+    queue: [],
+    activeTimers: [],
+    running: false,
+  };
+
+  function _diceAddTimer(id) {
+    _diceAnimState.activeTimers.push(id);
+  }
+
+  function cancelDiceAnimations() {
+    _diceAnimState.activeTimers.forEach(function (id) { clearTimeout(id); clearInterval(id); });
+    _diceAnimState.activeTimers = [];
+    _diceAnimState.queue = [];
+    _diceAnimState.running = false;
+    if (_diceAnimState.layer) _diceAnimState.layer.innerHTML = '';
+  }
+
+  function ensureDiceLayer() {
+    if (_diceAnimState.layer && _diceAnimState.layer.isConnected) return _diceAnimState.layer;
+    var host = document.getElementById('ddb-campaign-init-bar-host');
+    if (!host || !host.shadowRoot) return null;
+    var existing = host.shadowRoot.getElementById('dib-dice-layer');
+    if (existing) { _diceAnimState.layer = existing; return existing; }
+    var layer = document.createElement('div');
+    layer.id = 'dib-dice-layer';
+    host.shadowRoot.appendChild(layer);
+    _diceAnimState.layer = layer;
+    return layer;
+  }
+
+  function _diceGetListRect() {
+    var host = document.getElementById('ddb-campaign-init-bar-host');
+    if (!host || !host.shadowRoot) return null;
+    var list = host.shadowRoot.querySelector('.dib-init-list');
+    if (!list) return null;
+    return list.getBoundingClientRect();
+  }
+
+  function _diceGetCardRect(eid) {
+    var host = document.getElementById('ddb-campaign-init-bar-host');
+    if (!host || !host.shadowRoot) return null;
+    var card = host.shadowRoot.querySelector('[data-ddb-entry-id="' + eid + '"]');
+    if (!card) return null;
+    return card.getBoundingClientRect();
+  }
+
+  function _spawnDiceWidget(eid, entry, onDone) {
+    var layer = ensureDiceLayer();
+    if (!layer) { if (onDone) onDone(); return; }
+    var bd = entry.rollBreakdown;
+    if (!bd || !bd.rolls || !bd.rolls.length) { if (onDone) onDone(); return; }
+
+    var isMulti = bd.rolls.length === 2;
+    var rolls = bd.rolls;
+    var kept = bd.kept != null ? bd.kept : rolls[rolls.length - 1];
+    var dropped = isMulti ? (rolls[0] === kept ? rolls[1] : rolls[0]) : null;
+
+    var isCrit = (kept === 20);
+    var isFail = (kept === 1);
+    var mode = isCrit ? 'crit' : isFail ? 'fail' : 'normal';
+
+    var cardRect = _diceGetCardRect(eid);
+    if (!cardRect) { if (onDone) onDone(); return; }
+
+    var hostRect = layer.getBoundingClientRect();
+
+    function makeDie(value, isDrop) {
+      var die = document.createElement('div');
+      die.className = 'dib-dice-anim' + (isDrop ? ' dib-dice-anim--drop' : '');
+      die.setAttribute('data-mode', isDrop ? 'normal' : mode);
+
+      var shapeSvg = document.createElement('div');
+      shapeSvg.className = 'dib-dice-shape';
+      shapeSvg.innerHTML = '<svg viewBox="0 0 1800 1800" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="55" stroke-linejoin="round" d="M900 110L1625 665L1318 1590L482 1590L175 665ZM900 110L482 1590M900 110L1318 1590M175 665L1318 1590M1625 665L482 1590M175 665L1625 665"/></svg>';
+
+      var numEl = document.createElement('div');
+      numEl.className = 'dib-dice-num';
+      numEl.textContent = String(Math.floor(Math.random() * 20) + 1);
+
+      die.appendChild(shapeSvg);
+      die.appendChild(numEl);
+      return { el: die, numEl: numEl, value: value, isDrop: isDrop };
+    }
+
+    var dice = [];
+    if (isMulti) {
+      dice.push(makeDie(kept, false));
+      dice.push(makeDie(dropped, true));
+    } else {
+      dice.push(makeDie(kept, false));
+    }
+
+    var wrapper = document.createElement('div');
+    wrapper.className = 'dib-dice-wrapper' + (isMulti ? ' dib-dice-wrapper--dual' : '');
+
+    var top = cardRect.top - hostRect.top;
+    var left = cardRect.left - hostRect.left;
+    var h = cardRect.height;
+    var w = cardRect.width;
+    wrapper.style.cssText = 'position:absolute;top:' + (top + h / 2) + 'px;left:' + (left + w * 0.55) + 'px;transform:translateY(-50%);display:flex;gap:6px;';
+
+    dice.forEach(function (d) { wrapper.appendChild(d.el); });
+    layer.appendChild(wrapper);
+
+    // Phase: enter
+    dice.forEach(function (d) { d.el.classList.add('dib-dice-anim--enter'); });
+
+    var ROLL_MS = 55;
+    var SLOWDOWN = [55, 110, 190, 310, 450];
+    var stepIdx = [0, 0];
+
+    function cycleNum(dieObj) {
+      dieObj.numEl.textContent = String(Math.floor(Math.random() * 20) + 1);
+    }
+
+    // Start rolling
+    var intervals = dice.map(function (d, i) {
+      d.el.classList.add('dib-dice-anim--rolling');
+      var iv = setInterval(function () { cycleNum(d); }, ROLL_MS);
+      _diceAddTimer(iv);
+      return iv;
+    });
+
+    // Slowdown chain
+    function slowdownStep(dieObj, ivRef, stepI) {
+      clearInterval(ivRef[0]);
+      _diceAnimState.activeTimers = _diceAnimState.activeTimers.filter(function (t) { return t !== ivRef[0]; });
+      if (stepI >= SLOWDOWN.length) {
+        dieObj.numEl.textContent = String(dieObj.value);
+        dieObj.el.classList.remove('dib-dice-anim--rolling');
+        dieObj.el.classList.add('dib-dice-anim--land');
+        if (dieObj.isDrop) {
+          var t2 = setTimeout(function () { dieObj.el.classList.add('dib-dice-anim--dropped'); }, 200);
+          _diceAddTimer(t2);
+        }
+        return;
+      }
+      cycleNum(dieObj);
+      var newIv = setInterval(function () { cycleNum(dieObj); }, SLOWDOWN[stepI]);
+      _diceAddTimer(newIv);
+      ivRef[0] = newIv;
+      var t = setTimeout(function () { slowdownStep(dieObj, ivRef, stepI + 1); }, SLOWDOWN[stepI] * 3);
+      _diceAddTimer(t);
+    }
+
+    var totalRollTime = 650;
+    dice.forEach(function (d, i) {
+      var ivRef = [intervals[i]];
+      var delay = i * 120;
+      var t = setTimeout(function () { slowdownStep(d, ivRef, 0); }, totalRollTime + delay);
+      _diceAddTimer(t);
+    });
+
+    // Exit after all dice land
+    var exitDelay = totalRollTime + (dice.length - 1) * 120 + SLOWDOWN.reduce(function (a, b) { return a + b * 3; }, 0) + 900;
+    var exitT = setTimeout(function () {
+      dice.forEach(function (d) { d.el.classList.add('dib-dice-anim--exit'); });
+      var removeT = setTimeout(function () {
+        if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+        if (onDone) onDone();
+      }, 280);
+      _diceAddTimer(removeT);
+    }, exitDelay);
+    _diceAddTimer(exitT);
+  }
+
+  function _diceProcessQueue() {
+    if (_diceAnimState.running || !_diceAnimState.queue.length) return;
+    _diceAnimState.running = true;
+    var item = _diceAnimState.queue.shift();
+    _spawnDiceWidget(item.eid, item.entry, function () {
+      _diceAnimState.running = false;
+      var t = setTimeout(_diceProcessQueue, 120);
+      _diceAddTimer(t);
+    });
+  }
+
+  function triggerDiceAnimations(s, newlyRevealed) {
+    if (!barSettings || barSettings.diceAnimations === false) return;
+    if (!newlyRevealed || !newlyRevealed.length) return;
+    newlyRevealed.forEach(function (eid) {
+      var entry = s.entries[eid];
+      if (!entry || !entryHasRoll(entry)) return;
+      _diceAnimState.queue.push({ eid: eid, entry: entry });
+    });
+    _diceProcessQueue();
+  }
+  /* ===== END DICE ANIMATION SYSTEM ===== */
+
   function mutateLocalInitiative(mutator) {
-    localInitState = mutator(localInitState || emptyLocalInitiativeState());
+    var prev = localInitState || emptyLocalInitiativeState();
+    var prevRevealed = new Set(Array.isArray(prev.revealedEntryIds) ? prev.revealedEntryIds : []);
+    var prevCurrentId = prev.turnOrder[prev.currentTurnIndex];
+
+    localInitState = mutator(prev);
     saveLocalInitiativeState();
     renderLocalInitiativeUi();
     remoteSync.pushState(localInitState);
+
+    var s = localInitState;
+    var newCurrentId = s.turnOrder[s.currentTurnIndex];
+    var newlyRevealed = [];
+    (s.revealedEntryIds || []).forEach(function (eid) {
+      if (!prevRevealed.has(eid)) newlyRevealed.push(eid);
+    });
+    if (newCurrentId && newCurrentId !== prevCurrentId && entryHasRoll(s.entries[newCurrentId])) {
+      if (newlyRevealed.indexOf(newCurrentId) === -1) newlyRevealed.push(newCurrentId);
+    }
+    if (newlyRevealed.length) {
+      var t = setTimeout(function () { triggerDiceAnimations(s, newlyRevealed); }, 50);
+      _diceAddTimer(t);
+    }
   }
 
   function buildPartyCombatState() {
@@ -3469,6 +3683,7 @@
 
     const card = document.createElement('div');
     card.className = 'dib-init-card' + (isCurrent ? ' dib-init-card-active' : '');
+    card.setAttribute('data-ddb-entry-id', eid);
 
     const row = document.createElement('div');
     row.className = 'dib-init-card-row';
@@ -5295,6 +5510,118 @@
         height: 100%;
         display: block;
       }
+
+      /* ===== DICE ANIMATION SYSTEM ===== */
+      #dib-dice-layer {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 9000;
+        overflow: hidden;
+      }
+      .dib-dice-wrapper {
+        display: flex;
+        flex-direction: row;
+        gap: 6px;
+        align-items: center;
+        pointer-events: none;
+      }
+      .dib-dice-anim {
+        position: relative;
+        width: 72px;
+        height: 72px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--dib-heading-font, 'Cinzel', Georgia, serif);
+        opacity: 0;
+        transform: scale(0.5);
+        pointer-events: none;
+      }
+      .dib-dice-anim--enter {
+        animation: dib-dice-enter 0.18s cubic-bezier(.22,.68,0,1.2) forwards;
+      }
+      .dib-dice-anim--rolling {
+        animation: dib-dice-enter 0.18s cubic-bezier(.22,.68,0,1.2) forwards,
+                   dib-dice-shake 0.38s ease-in-out infinite 0.18s;
+      }
+      .dib-dice-anim--land {
+        animation: dib-dice-land 0.32s cubic-bezier(.22,.68,0,1.2) forwards;
+      }
+      .dib-dice-anim--exit {
+        animation: dib-dice-exit 0.26s ease-in forwards;
+      }
+      .dib-dice-anim--dropped .dib-dice-num {
+        opacity: 0.32;
+        text-decoration: line-through;
+      }
+      .dib-dice-shape {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .dib-dice-shape svg {
+        width: 100%;
+        height: 100%;
+        color: var(--dib-frame-gold, #d4a843);
+        opacity: 0.85;
+        filter: drop-shadow(0 0 4px rgba(212,168,67,.5));
+      }
+      .dib-dice-anim[data-mode="crit"] .dib-dice-shape svg {
+        color: var(--dib-frame-gold, #d4a843);
+        filter: drop-shadow(0 0 10px rgba(212,168,67,.9));
+        opacity: 1;
+      }
+      .dib-dice-anim[data-mode="fail"] .dib-dice-shape svg {
+        color: var(--dib-red-hot, #ef4444);
+        filter: drop-shadow(0 0 10px rgba(239,68,68,.8));
+        opacity: 1;
+      }
+      .dib-dice-num {
+        position: relative;
+        z-index: 1;
+        font-size: 22px;
+        font-weight: 900;
+        color: var(--dib-frame-gold, #d4a843);
+        text-shadow: 0 1px 3px rgba(0,0,0,.9);
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        transition: opacity 0.15s, text-decoration 0.15s;
+      }
+      .dib-dice-anim[data-mode="crit"] .dib-dice-num {
+        color: #ffe87a;
+        text-shadow: 0 0 8px rgba(212,168,67,.95), 0 1px 3px rgba(0,0,0,.9);
+      }
+      .dib-dice-anim[data-mode="fail"] .dib-dice-num {
+        color: var(--dib-red-hot, #ef4444);
+        text-shadow: 0 0 8px rgba(239,68,68,.8), 0 1px 3px rgba(0,0,0,.9);
+      }
+
+      @keyframes dib-dice-enter {
+        0%   { opacity: 0; transform: scale(0.45) translateY(8px); }
+        100% { opacity: 1; transform: scale(1) translateY(0); }
+      }
+      @keyframes dib-dice-shake {
+        0%,100% { transform: rotate(0deg) scale(1); }
+        18%     { transform: rotate(-5deg) scale(1.04); }
+        38%     { transform: rotate(4deg) scale(0.98); }
+        58%     { transform: rotate(-3deg) scale(1.02); }
+        78%     { transform: rotate(2deg) scale(1); }
+      }
+      @keyframes dib-dice-land {
+        0%   { opacity: 1; transform: scale(1); filter: drop-shadow(0 0 0px var(--dib-frame-gold, #d4a843)); }
+        35%  { transform: scale(1.22); filter: drop-shadow(0 0 18px var(--dib-frame-gold, #d4a843)); }
+        60%  { transform: scale(0.94); }
+        80%  { transform: scale(1.06); }
+        100% { opacity: 1; transform: scale(1); filter: drop-shadow(0 0 6px rgba(212,168,67,.35)); }
+      }
+      @keyframes dib-dice-exit {
+        0%   { opacity: 1; transform: scale(1) translateY(0); }
+        100% { opacity: 0; transform: scale(0.6) translateY(-10px); }
+      }
+      /* ===== END DICE ANIMATION SYSTEM ===== */
     `;
 
     const wrap = document.createElement('div');
@@ -5359,6 +5686,7 @@
     initToolbar.appendChild(mkBtn('▶', () => mutateLocalInitiative(localNextTurn)));
     initToolbar.appendChild(
       mkBtn('Clear', () => {
+        cancelDiceAnimations();
         setConfirmStartModalVisible(false);
         setCondEditorVisible(false);
         localInitState = emptyLocalInitiativeState();
@@ -5629,6 +5957,35 @@
     nameDispRow.appendChild(fnBtn);
     nameDispSection.appendChild(nameDispRow);
     settingsBody.appendChild(nameDispSection);
+
+    /** Dice Animations section */
+    const diceAnimSection = document.createElement('div');
+    const diceAnimTitle = document.createElement('div');
+    diceAnimTitle.className = 'dib-settings-section-title';
+    diceAnimTitle.textContent = 'Dice Animations';
+    diceAnimSection.appendChild(diceAnimTitle);
+    const diceAnimRow = document.createElement('div');
+    diceAnimRow.className = 'dib-settings-density-row';
+    const diceAnimBtn = document.createElement('button');
+    diceAnimBtn.type = 'button';
+    diceAnimBtn.className = 'dib-settings-density-btn' + (barSettings.diceAnimations !== false ? ' dib-settings-density-btn--active' : '');
+    diceAnimBtn.setAttribute('data-dib-dice-anim-toggle', 'true');
+    const diceAnimLbl = document.createElement('span');
+    diceAnimLbl.textContent = 'Roll Animation';
+    const diceAnimHint = document.createElement('span');
+    diceAnimHint.className = 'dib-settings-density-hint';
+    diceAnimHint.textContent = 'Plays when a roll is revealed';
+    diceAnimBtn.appendChild(diceAnimLbl);
+    diceAnimBtn.appendChild(diceAnimHint);
+    diceAnimBtn.addEventListener('click', () => {
+      barSettings.diceAnimations = barSettings.diceAnimations === false ? true : false;
+      saveBarSettings();
+      if (barSettings.diceAnimations === false) cancelDiceAnimations();
+      refreshSettingsPanelActiveStates(barSettings);
+    });
+    diceAnimRow.appendChild(diceAnimBtn);
+    diceAnimSection.appendChild(diceAnimRow);
+    settingsBody.appendChild(diceAnimSection);
 
     /** Icon colours section */
     const badgeColSection = document.createElement('div');
