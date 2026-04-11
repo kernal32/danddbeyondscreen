@@ -255,7 +255,7 @@
       wrapEl.style.setProperty('--dib-init-total-size', '22px');
       wrapEl.style.setProperty('--dib-init-cond-size', '8px');
     } else if (settings.density === 'large') {
-      wrapEl.style.setProperty('--dib-card-padding', '18px');
+      wrapEl.style.setProperty('--dib-card-padding', '12px');
       wrapEl.style.setProperty('--dib-avatar-size', '92px');
       wrapEl.style.setProperty('--dib-stat-badge-size', '92px');
       wrapEl.style.setProperty('--dib-stat-val-size', 'clamp(24px,5.5vw,34px)');
@@ -268,7 +268,7 @@
       wrapEl.style.setProperty('--dib-init-avatar-size', '110px');
       wrapEl.style.setProperty('--dib-init-ph-size', '42px');
       wrapEl.style.setProperty('--dib-init-row-minheight', '100px');
-      wrapEl.style.setProperty('--dib-init-row-pad', '14px 14px 14px 10px');
+      wrapEl.style.setProperty('--dib-init-row-pad', '10px 14px 10px 10px');
       wrapEl.style.setProperty('--dib-init-name-size', '30px');
       wrapEl.style.setProperty('--dib-init-rank-size', '24px');
       wrapEl.style.setProperty('--dib-init-total-size', '64px');
@@ -1257,6 +1257,22 @@
       titleBlock.appendChild(nameEl);
       titleBlock.appendChild(raceEl);
       titleBlock.appendChild(classEl);
+      if (c) {
+        const pcCondLabs = extractDdbConditionLabels(c);
+        if (pcCondLabs.length) {
+          const pcCondRow = document.createElement('div');
+          pcCondRow.className = 'dib-pc-cond-row';
+          for (let pci = 0; pci < pcCondLabs.length; pci++) {
+            const pill = document.createElement('span');
+            pill.className = 'dib-pc-inline-cond-pill';
+            const full = pcCondLabs[pci];
+            pill.title = full;
+            pill.textContent = '[' + abbrevConditionLabel(full) + ']';
+            pcCondRow.appendChild(pill);
+          }
+          titleBlock.appendChild(pcCondRow);
+        }
+      }
       hdr.appendChild(avWrap);
       hdr.appendChild(titleBlock);
       stack.appendChild(hdr);
@@ -1383,27 +1399,6 @@
         ph.className = 'dib-pc-stack-empty';
         ph.textContent = '…';
         stack.appendChild(ph);
-      }
-
-      if (c) {
-        const pcCondLabs = extractDdbConditionLabels(c);
-        if (pcCondLabs.length) {
-          const pcCondTitle = document.createElement('div');
-          pcCondTitle.className = 'dib-pc-section-title';
-          pcCondTitle.textContent = 'Conditions';
-          stack.appendChild(pcCondTitle);
-          const pcCondRow = document.createElement('div');
-          pcCondRow.className = 'dib-pc-cond-row';
-          for (let pci = 0; pci < pcCondLabs.length; pci++) {
-            const pill = document.createElement('span');
-            pill.className = 'dib-pc-inline-cond-pill';
-            const full = pcCondLabs[pci];
-            pill.title = full;
-            pill.textContent = '[' + abbrevConditionLabel(full) + ']';
-            pcCondRow.appendChild(pill);
-          }
-          stack.appendChild(pcCondRow);
-        }
       }
 
       card.appendChild(stack);
@@ -3525,14 +3520,13 @@
     if (reveal) {
       if (bd && bd.rolls && bd.rolls.length) {
         const kept = bd.kept != null ? bd.kept : bd.rolls[bd.rolls.length - 1];
-        rollLine.textContent =
-          'Roll ' + bd.rolls.join(' · ') + ' → ' + kept + ' ' + fmtSignedMod(modUsed) + ' = ' + e.initiativeTotal;
+        rollLine.textContent = 'Roll ' + kept + ' ' + fmtSignedMod(modUsed);
       } else {
-        rollLine.textContent = 'Not rolled — initiative mod ' + fmtSignedMod(e.mod);
+        rollLine.textContent = 'Mod ' + fmtSignedMod(e.mod);
       }
     } else {
       rollLine.className = 'dib-init-roll dib-init-roll--pending';
-      rollLine.textContent = entryHasRoll(e) ? 'Rolled — total hidden until this turn' : 'Not rolled — mod ' + fmtSignedMod(e.mod);
+      rollLine.textContent = entryHasRoll(e) ? 'Rolled' : 'Mod ' + fmtSignedMod(e.mod);
     }
 
     const tieLine = document.createElement('div');
@@ -3958,7 +3952,7 @@
         padding: 8px 8px 4px;
       }
       .dib-init-card {
-        margin-bottom: 12px;
+        margin-bottom: 8px;
         border-radius: 8px;
         border: 1px solid var(--dib-iron, #5a5a62);
         border-left: 3px solid var(--dib-iron, #5a5a62);
@@ -4352,8 +4346,8 @@
         flex-direction: row;
         align-items: flex-start;
         gap: 10px;
-        padding-bottom: 10px;
-        margin-bottom: 8px;
+        padding-bottom: 6px;
+        margin-bottom: 4px;
         border-bottom: none;
         position: relative;
       }
@@ -4412,10 +4406,9 @@
       .dib-pc-cond-row {
         display: flex;
         flex-wrap: wrap;
-        justify-content: center;
+        justify-content: flex-start;
         gap: 4px 5px;
-        padding: 5px 8px 6px 8px;
-        border-top: 1px solid rgba(255,255,255,.07);
+        padding: 4px 0 0;
       }
       .dib-pc-cond-row:empty { display: none; }
       .dib-pc-inline-cond-pill {
@@ -5020,13 +5013,13 @@
 
       /* ===== PARTY CARD OVERFLOW FIX ===== */
       .dib-pc-stack { border-radius: 6px; }
-      .dib-party-grid { padding: 8px 12px 12px; gap: 10px 14px; }
+      .dib-party-grid { padding: 6px 10px 8px; gap: 6px 14px; }
 
       /* ===== HIDE INITIATIVE TIE LINE + RANK; SHOW ROLL ===== */
       .dib-init-tie { display: none; }
       .dib-init-rank { display: none; }
       .dib-init-roll {
-        font-size: var(--dib-ribbon-size, 11px);
+        font-size: 15px;
         font-family: var(--dib-heading-font, 'Cinzel', Georgia, serif);
         font-weight: 700;
         text-transform: uppercase;
