@@ -1297,6 +1297,12 @@
       const hp = c ? hpBoxParts(c) : null;
       const hpMain = hp ? (hp.temp ? String(hp.temp) : hp.cur) : '—';
       const hpSub = '';
+      if (hp && Number(hp.cur) <= 0) {
+        const koDiv = document.createElement('div');
+        koDiv.className = 'dib-pc-ko-overlay';
+        koDiv.textContent = 'ZzZ';
+        avWrap.appendChild(koDiv);
+      }
 
       const statRow = document.createElement('div');
       statRow.className = 'dib-pc-stat-icon-row';
@@ -4432,7 +4438,24 @@
           transparent 100%
         );
       }
-      .dib-pc-avatar-wrap { flex-shrink: 0; }
+      .dib-pc-avatar-wrap { flex-shrink: 0; position: relative; }
+      .dib-pc-ko-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.65);
+        border-radius: 6px;
+        font-family: var(--dib-heading-font, 'Cinzel', Georgia, serif);
+        font-size: 18px;
+        font-weight: 900;
+        color: #e5e5e5;
+        letter-spacing: 0.1em;
+        text-shadow: 0 2px 8px rgba(0,0,0,.9), 0 0 12px rgba(200,200,200,.25);
+        z-index: 2;
+        pointer-events: none;
+      }
       .dib-pc-avatar {
         width: var(--dib-avatar-size, 52px);
         height: var(--dib-avatar-size, 52px);
