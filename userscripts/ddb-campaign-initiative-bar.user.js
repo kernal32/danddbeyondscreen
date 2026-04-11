@@ -2199,17 +2199,24 @@
       lv.className = 'dib-pc-slot-lv dib-pc-class-res-lv';
       const fullName = String(r.name || '').trim();
       lv.textContent = fullName || '—';
-      lv.title = fullName + (max > 12 ? ' (' + remaining + '/' + max + ')' : '');
-      const dots = document.createElement('span');
-      dots.className = 'dib-pc-slot-dots';
-      for (let d = 0; d < cap; d++) {
-        const g = document.createElement('span');
-        g.className = 'dib-pc-slot-glyph' + (d < remDots ? ' dib-pc-slot-glyph--on' : ' dib-pc-slot-glyph--off');
-        g.setAttribute('aria-hidden', 'true');
-        dots.appendChild(g);
-      }
+      lv.title = fullName + ' (' + remaining + '/' + max + ')';
       grp.appendChild(lv);
-      grp.appendChild(dots);
+      if (max > 4) {
+        const numEl = document.createElement('span');
+        numEl.className = 'dib-pc-class-res-count';
+        numEl.textContent = remaining + '/' + max;
+        grp.appendChild(numEl);
+      } else {
+        const dots = document.createElement('span');
+        dots.className = 'dib-pc-slot-dots';
+        for (let d = 0; d < cap; d++) {
+          const g = document.createElement('span');
+          g.className = 'dib-pc-slot-glyph' + (d < remDots ? ' dib-pc-slot-glyph--on' : ' dib-pc-slot-glyph--off');
+          g.setAttribute('aria-hidden', 'true');
+          dots.appendChild(g);
+        }
+        grp.appendChild(dots);
+      }
       flex.appendChild(grp);
     }
     mountEl.appendChild(flex);
@@ -4835,6 +4842,15 @@
         color: #a8a29e;
         word-break: break-word;
         line-height: 1.3;
+      }
+      .dib-pc-class-res-count {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--pc-teal);
+        font-family: Georgia, serif;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.04em;
+        line-height: 1;
       }
       .dib-pc-pills { display: flex; flex-wrap: wrap; gap: 5px; }
       .dib-pc-pill {
