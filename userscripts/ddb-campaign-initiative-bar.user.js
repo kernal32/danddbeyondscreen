@@ -4660,6 +4660,7 @@
       .dib-pc-pass-inline {
         flex: 1;
         min-width: 0;
+        align-self: center;
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         justify-items: center;
