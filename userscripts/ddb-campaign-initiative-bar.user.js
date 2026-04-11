@@ -671,6 +671,7 @@
                 return {
                   armorClass: charf.getAcTotal(state),
                   hitPointInfo: charf.getHitPointInfo(state),
+                  deathSaveInfo: charf.getDeathSaveInfo(state),
                   initiative: charf.getProcessedInitiative(state),
                   inspiration: charf.getInspiration(state),
                   conditions: charf.getActiveConditions(state),
@@ -1019,6 +1020,9 @@
           if (typeof computed.inspiration === 'boolean') u.inspiration = computed.inspiration;
           if (typeof computed.proficiencyBonus === 'number') u.proficiencyBonus = computed.proficiencyBonus;
           if (computed.spellCasterInfo) u.spellCasterInfo = computed.spellCasterInfo;
+          if (computed.deathSaveInfo && typeof computed.deathSaveInfo === 'object') {
+            u.deathSaveInfo = Object.assign({}, u.deathSaveInfo || {}, computed.deathSaveInfo);
+          }
           if (Array.isArray(computed.conditions)) u.conditions = computed.conditions;
         }
       } catch (e) {
