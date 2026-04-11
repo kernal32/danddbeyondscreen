@@ -17,6 +17,16 @@ export interface ClassResourceSummary {
   used: number;
 }
 
+/**
+ * Subset of the last merged D&D Beyond sheet JSON: raw `spellSlots` / pact arrays as ingested.
+ * Kept small so it can travel with session party data after `ddbSheetJson` is stripped.
+ */
+export interface SpellSlotSourceDebug {
+  spellSlots?: unknown;
+  pactMagic?: unknown;
+  pactMagicSlots?: unknown;
+}
+
 export interface NormalizedCharacter {
   id: string;
   name: string;
@@ -47,10 +57,21 @@ export interface NormalizedCharacter {
   /** Omitted or empty when no `actions.*.limitedUse` pools appear in the DDB payload. */
   classResources?: ClassResourceSummary[];
   /**
+   * Raw DDB spell-slot arrays from the ingest payload (for troubleshooting vs. normalized `spellSlots`).
+   * Omitted when no such arrays were present.
+   */
+  spellSlotSourceDebug?: SpellSlotSourceDebug;
+  /**
    * Server-set Unix ms when this row was last written from `/api/ingest/party` merge.
    * Used to pick the newest payload when the same character id is uploaded again.
    */
   ingestedAt?: number;
+  /**
+   * Full merged D&D Beyond character object from ingest (legacy `/json` + live character-service).
+   * Stored on account uploads (`/api/ingest/party`); stripped when a party is loaded into a live
+   * session so sockets stay small. Use for admin tooling or future extractors against saved uploads.
+   */
+  ddbSheetJson?: Record<string, unknown>;
 }
 
 export interface CampaignRef {

@@ -1,17 +1,22 @@
-import type { ComponentType } from 'react';
-import type { WidgetType } from '@ddb/shared-types';
-import ClockWidget from './ClockWidget';
-import DiceLogWidget from './DiceLogWidget';
-import InitiativeWidget from './InitiativeWidget';
-import PartyWidget from './PartyWidget';
-import SpacerWidget from './SpacerWidget';
-import TimedEffectsWidget from './TimedEffectsWidget';
+import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
+import type { WidgetType } from '@ddb/shared-types/layout';
 import type { WidgetViewProps } from './types';
+
+/**
+ * Lazy per widget so `widgetRegistry` does not synchronously execute every widget module (avoids Vite + React 19
+ * temporal-dead-zone / CJS interop crashes when the layout editor chunk loads).
+ */
+const PartyWidget = lazy(() => import('./PartyWidget'));
+const InitiativeWidget = lazy(() => import('./InitiativeWidget'));
+const TimedEffectsWidget = lazy(() => import('./TimedEffectsWidget'));
+const DiceLogWidget = lazy(() => import('./DiceLogWidget'));
+const ClockWidget = lazy(() => import('./ClockWidget'));
+const SpacerWidget = lazy(() => import('./SpacerWidget'));
 
 export type WidgetDefinition = {
   /** Layout editor palette / tooling (future). */
   label: string;
-  Component: ComponentType<WidgetViewProps>;
+  Component: LazyExoticComponent<ComponentType<WidgetViewProps>>;
   /**
    * Informal notes for `WidgetInstance.config` until shared-types defines per-widget schemas.
    * Keys are suggestions only; backend does not validate widget-specific config today.

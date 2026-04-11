@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { NormalizedCharacter } from '@ddb/shared-types';
+import type { NormalizedCharacter, PartySnapshot } from '@ddb/shared-types';
 import {
   emptyInitiativeState,
   addCombatant,
@@ -18,6 +18,7 @@ import {
   setEntryCombatTags,
   stripRoundPlanCombatTags,
   rollInitiative,
+  syncInitiativeConditionsFromParty,
 } from './initiative.service.js';
 
 function ch(partial: Partial<NormalizedCharacter> & Pick<NormalizedCharacter, 'id' | 'name'>): NormalizedCharacter {
@@ -233,5 +234,40 @@ describe('initiative.service', () => {
     s = filterInitiativeExcludingEntityIds(s, new Set(['p1']));
     expect(s.turnOrder.length).toBe(1);
     expect(s.entries[s.turnOrder[0]!]?.entityId).toBe('npc-1');
+  });
+
+  it('syncInitiativeConditionsFromParty overwrites stale row conditions from merged party', () => {
+    let s = emptyInitiativeState();
+    s = addCombatant(s, {
+      label: 'Drevan',
+      entityId: '42',
+      mod: 0,
+      conditions: ['Blinded', 'Charmed', 'Deafened'],
+    });
+    const entryId = s.turnOrder[0]!;
+    const party: PartySnapshot = {
+      campaign: null,
+      characters: [ch({ id: '42', name: 'Drevan', conditions: [] })],
+      fetchedAt: null,
+      upstreamDate: null,
+      error: null,
+    };
+    s = syncInitiativeConditionsFromParty(s, party);
+    expect(s.entries[entryId]?.conditions).toBeUndefined();
+  });
+
+  it('syncInitiativeConditionsFromParty updates stale initiative labels from merged party', () => {
+    let s = emptyInitiativeState();
+    s = addCombatant(s, { label: 'Old Name', entityId: '7', mod: 0 });
+    const entryId = s.turnOrder[0]!;
+    const party: PartySnapshot = {
+      campaign: null,
+      characters: [ch({ id: '7', name: 'Renamed PC', conditions: [] })],
+      fetchedAt: null,
+      upstreamDate: null,
+      error: null,
+    };
+    s = syncInitiativeConditionsFromParty(s, party);
+    expect(s.entries[entryId]?.label).toBe('Renamed PC');
   });
 });

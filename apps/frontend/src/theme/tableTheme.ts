@@ -1,4 +1,4 @@
-import { type TableTheme, isTableTheme } from '@ddb/shared-types';
+import { type TableTheme, isTableTheme } from '@ddb/shared-types/themes';
 import { mapPaletteToTheme } from './mapPaletteToTheme';
 import { UI_THEME_CSS_VARS } from './uiTheme';
 
@@ -28,10 +28,11 @@ export function tableThemeCssClass(theme: TableTheme): string {
 }
 
 export function applyRootTableTheme(theme: TableTheme): void {
+  const safe: TableTheme = isTableTheme(theme) ? theme : 'minimal';
   const root = document.documentElement;
   for (const v of UI_THEME_CSS_VARS) root.style.removeProperty(v);
   for (const c of ROOT_THEME_CLASSLIST) root.classList.remove(c);
-  root.classList.add(tableThemeCssClass(theme));
+  root.classList.add(tableThemeCssClass(safe));
 }
 
 /** Apply base theme class and optional palette-derived CSS variables (display + master + settings). */

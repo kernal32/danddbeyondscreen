@@ -28,7 +28,21 @@ function copyPartyIngestUserscript(): void {
   fs.copyFileSync(src, dest);
 }
 
+/** Cap concurrent Rollup file ops on small VPSes: `ROLLUP_MAX_PARALLEL_FILE_OPS=3 npm run build` */
+const rollupMaxParallel = (() => {
+  const raw = process.env.ROLLUP_MAX_PARALLEL_FILE_OPS?.trim();
+  if (!raw) return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return undefined;
+  return Math.floor(n);
+})();
+
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      ...(rollupMaxParallel != null ? { maxParallelFileOps: rollupMaxParallel } : {}),
+    },
+  },
   plugins: [
     react(),
     {

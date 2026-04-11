@@ -1,4 +1,4 @@
-import type { WidgetInstance } from '@ddb/shared-types';
+import type { WidgetInstance } from '@ddb/shared-types/layout';
 
 /** Shown when `instance.type` is not in `WIDGET_REGISTRY` (stale client or forward-incompatible layout JSON). */
 export default function UnknownWidget({ instance }: { instance: WidgetInstance }) {

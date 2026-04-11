@@ -7,6 +7,8 @@ import { Server } from 'socket.io';
 import { loadConfig } from './config.js';
 import { openAppDatabase } from './db/sqlite.js';
 import { registerAuthRoutes, verifyUserJwt } from './routes/auth.js';
+import { registerAdminRoutes } from './routes/admin.js';
+import { AdminAuditService } from './services/admin-audit.service.js';
 import { DndBeyondService } from './services/dndbeyond.service.js';
 import { CharacterService } from './services/character.service.js';
 import { GameSessionPersistence } from './services/game-session-persistence.service.js';
@@ -84,6 +86,8 @@ if (config.authSecret.length >= 32) {
   userPrefs = new UserPreferencesService(db, config.authSecret);
   userApiKeys = new UserApiKeyService(db);
   userDdbUploads = new UserDdbUploadService(db);
+  const adminEmailAllowlist = new Set(config.adminEmailAllowlist);
+  const adminAudit = new AdminAuditService(db);
   registerAuthRoutes(app, {
     authSecret: config.authSecret,
     userAuth,
@@ -92,7 +96,18 @@ if (config.authSecret.length >= 32) {
     ddbUploads: userDdbUploads,
     sessions,
     gameSessionPersistence,
+    adminEmailAllowlist,
   });
+  registerAdminRoutes(app, {
+    authSecret: config.authSecret,
+    userAuth,
+    audit: adminAudit,
+    adminEmailAllowlist,
+    ddbUploads: userDdbUploads,
+  });
+  if (adminEmailAllowlist.size > 0) {
+    app.log.info({ adminSlots: adminEmailAllowlist.size }, 'Admin API enabled (ADMIN_EMAIL_ALLOWLIST)');
+  }
   app.log.info({ databasePath: config.databasePath }, 'User accounts enabled (SQLite + JWT)');
 } else {
   app.log.info({ databasePath: config.databasePath }, 'Game sessions persisted to SQLite (user accounts disabled)');

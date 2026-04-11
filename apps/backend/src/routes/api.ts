@@ -13,6 +13,7 @@ import {
   parsePartyCardDisplayPayload,
 } from '@ddb/shared-types';
 import * as Initiative from '../services/initiative.service.js';
+import { applyManualHpPatch } from '../services/session.service.js';
 import { randomUUID } from 'node:crypto';
 import { parseTableLayoutPayload } from '../util/table-layout.js';
 import { IngestRateLimiter } from '../util/ingest-rate-limit.js';
@@ -135,6 +136,8 @@ export function registerApiRoutes(
       pollIntervalMs: number;
       /** Exactly four digits; bumps `displayPinRevision` for display / phone clients. */
       displayGatePin: string;
+      displayInitiativeMaskTotals: boolean;
+      displayInitiativeRevealLowest: boolean;
     }>;
   }>(
     '/api/sessions/:sessionId',
@@ -181,6 +184,25 @@ export function registerApiRoutes(
       }
       if (req.body.seedCharacterId !== undefined) sessions.setSeed(s, req.body.seedCharacterId);
       if (req.body.pollIntervalMs !== undefined) s.pollIntervalMs = req.body.pollIntervalMs;
+      const maskPatch: {
+        displayInitiativeMaskTotals?: boolean;
+        displayInitiativeRevealLowest?: boolean;
+      } = {};
+      if (req.body.displayInitiativeMaskTotals !== undefined) {
+        if (typeof req.body.displayInitiativeMaskTotals !== 'boolean') {
+          return reply.code(400).send({ error: 'displayInitiativeMaskTotals must be a boolean' });
+        }
+        maskPatch.displayInitiativeMaskTotals = req.body.displayInitiativeMaskTotals;
+      }
+      if (req.body.displayInitiativeRevealLowest !== undefined) {
+        if (typeof req.body.displayInitiativeRevealLowest !== 'boolean') {
+          return reply.code(400).send({ error: 'displayInitiativeRevealLowest must be a boolean' });
+        }
+        maskPatch.displayInitiativeRevealLowest = req.body.displayInitiativeRevealLowest;
+      }
+      if (Object.keys(maskPatch).length > 0) {
+        sessions.setDisplayInitiativeMaskSettings(s, maskPatch);
+      }
       sessions.markDirty(s);
       broadcast(s.sessionId);
       return { ok: true, displayPinRevision: s.displayPinRevision };
@@ -362,12 +384,13 @@ export function registerApiRoutes(
     }
     const { characterId, currentHp, tempHp, conditions, absent, hiddenFromTable, inspired } = req.body;
     if (!characterId) return reply.code(400).send({ error: 'characterId required' });
+    if (currentHp !== undefined || tempHp !== undefined) {
+      applyManualHpPatch(s.manualOverrides, characterId, { currentHp, tempHp });
+    }
     sessions.setManualOverride(s, characterId, {
-      currentHp,
-      tempHp,
-      conditions,
-      absent,
-      hiddenFromTable,
+      ...(conditions !== undefined ? { conditions } : {}),
+      ...(absent !== undefined ? { absent } : {}),
+      ...(hiddenFromTable !== undefined ? { hiddenFromTable } : {}),
       ...(inspired !== undefined ? { inspired } : {}),
     });
     if (absent === true || hiddenFromTable === true) {

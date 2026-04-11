@@ -1,4 +1,4 @@
-import type { NormalizedCharacter } from '@ddb/shared-types';
+import type { NormalizedCharacter } from '@ddb/shared-types/character';
 import type { PlayerCardData } from './types';
 
 export function normalizedCharacterToPlayerCardData(c: NormalizedCharacter): PlayerCardData {
@@ -21,8 +21,9 @@ export function normalizedCharacterToPlayerCardData(c: NormalizedCharacter): Pla
       investigation: c.passiveInvestigation,
       insight: c.passiveInsight,
     },
-    conditions: c.conditions.length > 0 ? [...c.conditions] : undefined,
+    conditions: (c.conditions?.length ?? 0) > 0 ? [...(c.conditions ?? [])] : undefined,
     spellSlots: c.spellSlots && c.spellSlots.length > 0 ? c.spellSlots : undefined,
+    ...(c.spellSlotSourceDebug ? { spellSlotSourceDebug: c.spellSlotSourceDebug } : {}),
     classResources:
       c.classResources && c.classResources.length > 0 ? c.classResources : undefined,
     ...(combat ? { combat } : {}),

@@ -8,6 +8,7 @@ import {
   getPassiveScore,
   getSpellSaveDc,
   getStatMod,
+  resolveDisplayArmorClass,
   type DdbCharacter,
 } from './character-calculator.js';
 
@@ -23,6 +24,13 @@ describe('character-calculator', () => {
 
   it('computes AC (unarmored)', () => {
     expect(calculateAc(fixture)).toBe(12);
+  });
+
+  it('resolveDisplayArmorClass prefers sheet armorClass over inventory recompute', () => {
+    expect(resolveDisplayArmorClass(fixture)).toBe(12);
+    const withSheet: DdbCharacter = { ...fixture, armorClass: 19 };
+    expect(resolveDisplayArmorClass(withSheet)).toBe(19);
+    expect(calculateAc(withSheet)).toBe(12);
   });
 
   it('computes max HP from hit dice', () => {

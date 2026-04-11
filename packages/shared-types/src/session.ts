@@ -56,6 +56,13 @@ export interface PublicSessionState {
   themePalette: string[] | null;
   /** What to show on each party character card (DM + display). */
   partyCardDisplay: PartyCardDisplayOptions;
+  /**
+   * When true, table/phone **display** clients mask initiative totals and roll lines except for revealed rows
+   * (see {@link shouldRevealInitiativeDetailOnDisplay}). DM always sees full data.
+   */
+  displayInitiativeMaskTotals: boolean;
+  /** When true with `displayInitiativeMaskTotals`, also show totals for everyone tied for lowest initiative in order. */
+  displayInitiativeRevealLowest: boolean;
   /** TV/table widget grid; included for display and DM. */
   tableLayout: TableLayout;
   party: PartySnapshot;
@@ -83,6 +90,10 @@ export interface SessionRecord {
   /** See `PublicSessionState.themePalette`. */
   themePalette?: string[] | null;
   partyCardDisplay: PartyCardDisplayOptions;
+  /** @see PublicSessionState.displayInitiativeMaskTotals */
+  displayInitiativeMaskTotals?: boolean;
+  /** @see PublicSessionState.displayInitiativeRevealLowest */
+  displayInitiativeRevealLowest?: boolean;
   tableLayout: TableLayout;
   seedCharacterId: number | null;
   pollIntervalMs: number;

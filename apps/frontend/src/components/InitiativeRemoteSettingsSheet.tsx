@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { PublicSessionState } from '@ddb/shared-types';
+import type { PublicSessionState } from '@ddb/shared-types/session';
 import { formatConditionLabel } from '../util/formatConditionLabel';
 
 const BASE_CONDITIONS = [

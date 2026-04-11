@@ -1,13 +1,16 @@
-import type { PublicSessionState } from '@ddb/shared-types';
-import { createDefaultTableLayout } from '@ddb/shared-types';
+import { createDefaultTableLayout } from '@ddb/shared-types/layout';
+import type { PublicSessionState } from '@ddb/shared-types/session';
 import { resolveWidgetTableTheme, widgetThemeSurfaceClassFromSession } from '../theme/tableTheme';
 import { TableThemeProvider } from '../theme/TableThemeContext';
 import { renderTableWidget } from '../widgets/renderTableWidget';
+import type { SessionUiMode } from '../types/sessionUiMode';
 import { sortWidgets } from '../widgets/sortWidgets';
 import { tableLayoutRowCount } from './tableLayoutGrid';
+import { getWidgetLayoutV2, layoutV2ToLegacyGrid, withWidgetLayoutV2Config } from './layoutV2';
 
 export type TableLayoutRendererProps = {
   state: PublicSessionState;
+  sessionUiMode: SessionUiMode;
   large?: boolean;
   /** Widget outlines, 12-col guides (wide screens), raw JSON panel */
   debugLayout?: boolean;
@@ -35,6 +38,7 @@ function LayoutGridOverlay() {
 
 export default function TableLayoutRenderer({
   state,
+  sessionUiMode,
   large = true,
   debugLayout = false,
   className = '',
@@ -43,7 +47,19 @@ export default function TableLayoutRenderer({
 }: TableLayoutRendererProps) {
   const layout = state.tableLayout ?? createDefaultTableLayout();
   const widgets = sortWidgets(layout.widgets ?? []);
-  const rowCount = tableLayoutRowCount(widgets);
+  const legacyRowCount = tableLayoutRowCount(widgets);
+  const projectedOnce = widgets.map((w) => {
+    const v2 = getWidgetLayoutV2(w, legacyRowCount);
+    const legacy = layoutV2ToLegacyGrid(v2, legacyRowCount);
+    return withWidgetLayoutV2Config({ ...w, ...legacy }, v2);
+  });
+  const projectedRowCount = tableLayoutRowCount(projectedOnce);
+  const effectiveWidgets = projectedOnce.map((w) => {
+    const v2 = getWidgetLayoutV2(w, projectedRowCount);
+    const legacy = layoutV2ToLegacyGrid(v2, projectedRowCount);
+    return withWidgetLayoutV2Config({ ...w, ...legacy }, v2);
+  });
+  const rowCount = tableLayoutRowCount(effectiveWidgets);
 
   return (
     <div
@@ -59,8 +75,11 @@ export default function TableLayoutRenderer({
               : undefined
           }
         >
-          {widgets.map((w) => {
-            const body = renderTableWidget(w, state, large, emit, { fillCell: fillViewport });
+          {effectiveWidgets.map((w) => {
+            const body = renderTableWidget(w, state, sessionUiMode, large, emit, {
+              fillCell: fillViewport,
+              layoutRowCount: rowCount,
+            });
             if (body == null) return null;
 
             const surfaceTheme = widgetThemeSurfaceClassFromSession(state.theme, w.themeOverride, state.themePalette);

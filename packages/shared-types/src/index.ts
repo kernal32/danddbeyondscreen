@@ -4,6 +4,7 @@ export * from './initiative.js';
 export * from './layout.js';
 export * from './widget-config.js';
 export * from './party-card-display.js';
+export * from './player-card-layout.js';
 export * from './session.js';
 export * from './themes.js';
 export * from './theme-preferences.js';

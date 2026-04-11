@@ -72,3 +72,52 @@ export interface InitiativeState {
   /** DM/TV: optional marker for “went last” / DM turn gap (click a row to set). */
   markedEntryId: string | null;
 }
+
+/** Default tracker state (server + client use the same shape). */
+export function emptyInitiativeState(): InitiativeState {
+  return {
+    round: 1,
+    currentTurnIndex: 0,
+    turnOrder: [],
+    entries: {},
+    markedEntryId: null,
+  };
+}
+
+/** Minimum `initiativeTotal` among entries listed in `turnOrder` (ignores missing ids). */
+export function lowestInitiativeTotalInOrder(init: InitiativeState): number | null {
+  const order = init?.turnOrder;
+  const entries = init?.entries;
+  if (!Array.isArray(order) || !entries || typeof entries !== 'object') return null;
+  let min: number | null = null;
+  for (const id of order) {
+    const e = entries[id];
+    if (!e) continue;
+    const t = e.initiativeTotal;
+    if (min === null || t < min) min = t;
+  }
+  return min;
+}
+
+/**
+ * When `maskTotals` is false, always true (show full detail).
+ * When true (display privacy): reveal leader (`turnOrder[0]`) and, if `revealLowest`, every entry tied for
+ * {@link lowestInitiativeTotalInOrder}. If `turnOrder` is empty, all rows are revealed.
+ */
+export function shouldRevealInitiativeDetailOnDisplay(
+  entry: InitiativeEntry,
+  init: InitiativeState,
+  opts: { maskTotals: boolean; revealLowest: boolean },
+): boolean {
+  if (!opts.maskTotals) return true;
+  const order = init?.turnOrder;
+  if (!Array.isArray(order) || order.length === 0) return true;
+  const leaderId = order[0];
+  if (!leaderId) return true;
+  if (entry.id === leaderId) return true;
+  if (opts.revealLowest) {
+    const low = lowestInitiativeTotalInOrder(init);
+    if (low !== null && entry.initiativeTotal === low) return true;
+  }
+  return false;
+}

@@ -1,51 +1,43 @@
 /** Inline SVGs for party stat rows (TV + DM). */
 
 /**
- * Heater shield outline from project-supplied SVG (high-res path + `translate` / `scale(0.1,-0.1)`).
- * Only the **outer** subpath is used here (stroke); the source’s inner `m216…` ring was for a filled double edge.
- * If this trace came from third-party UI, confirm you have rights to use it.
+ * **Heart + shield:** Paths from [Lucide](https://lucide.dev) (ISC License — see lucide.dev/license).
+ * Same `viewBox` as the DM app + `ddb-campaign-initiative-bar.user.js` stat badges.
+ *
+ * **Spell save:** Filled white regular pentagon (original geometry).
  */
-const SHIELD_TRANSFORM = 'translate(0,105) scale(0.1,-0.1)';
-const SHIELD_OUTER_PATH_D =
-  'M505 958 c-33 -11 -97 -31 -142 -45 -46 -14 -83 -29 -84 -32 -8 -68 -45 -132 -87 -151 l-33 -15 3 -120 c3 -118 4 -122 45 -208 51 -105 89 -163 147 -220 63 -62 124 -102 185 -122 l53 -17 76 38 c127 65 232 187 298 348 31 75 34 89 34 193 l0 111 -29 10 c-32 11 -63 57 -82 120 -12 42 -14 43 -83 63 -39 11 -105 32 -146 45 -86 28 -77 27 -155 2z';
+export const SHIELD_VIEWBOX = '0 0 24 24';
 
-/**
- * Square viewBox so the shield scales like the 24×24 heart inside the same square `statIconFrame`
- * (112×105 letterboxing had made the glyph sit visually lower than the heart).
- */
-export const SHIELD_VIEWBOX = '10.01431718061674 9.39498 88.10506607929516 97.72004';
+/** lucide-static heart @0.460 — stroke in source is 2px; we use fill + hairline for parity with legacy cards. */
+const LUCIDE_HEART_PATH_D =
+  'M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z';
 
-/** Stroke width in **path** units (before `scale(0.1)`); tuned for ~3-4px visual outline. */
-const SHIELD_STROKE_PATH_UNITS = 34;
+/** lucide-static shield @0.460 */
+const LUCIDE_SHIELD_PATH_D =
+  'M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z';
+
+/** Regular pentagon, point up — scaled to ~match Lucide heart/shield extent in 24×24 (r≈10.5, cy 12.8). */
+const SPELL_SAVE_PENTAGON_PATH_D = 'M12 2.3L21.99 9.56L18.17 21.3L5.83 21.3L2.01 9.56Z';
 
 const PRIMARY_ICON_BLACK_OUTLINE = 0.8;
-/**
- * Square-ish crop so heart occupies similar vertical space as the shield
- * when both are rendered in the same square stat frame.
- */
-const HEART_VIEWBOX = '3.16 4.08 17.68 17.68';
 
-/** 24x24 top-stat icon outline thickness (heart / pentagram). */
+/** 24×24 top-stat icon hairline (heart / shield filled glyphs). */
 export const PRIMARY_STAT_ICON_STROKE = PRIMARY_ICON_BLACK_OUTLINE;
 
-const SHIELD_VERTICAL_NUDGE = (112 - 105) / 2;
-/** Path bounds after `scale(0.1,-0.1)` are slightly right-heavy in 112×112; shift left for optical center. */
-const SHIELD_HORIZONTAL_NUDGE = -4;
-
-export function ShieldHeaterOutline({ strokeWidth = SHIELD_STROKE_PATH_UNITS }: { strokeWidth?: number }) {
+export function ShieldHeaterOutline({
+  strokeWidth = PRIMARY_STAT_ICON_STROKE,
+}: {
+  strokeWidth?: number;
+}) {
   return (
-    <g transform={`translate(${SHIELD_HORIZONTAL_NUDGE},${SHIELD_VERTICAL_NUDGE})`}>
-      <g transform={SHIELD_TRANSFORM}>
-        <path
-          d={SHIELD_OUTER_PATH_D}
-          fill="currentColor"
-          stroke="#000"
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </g>
-    </g>
+    <path
+      d={LUCIDE_SHIELD_PATH_D}
+      fill="currentColor"
+      stroke="#000"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   );
 }
 
@@ -53,7 +45,7 @@ export function IconHeart({ className }: { className?: string }) {
   return (
     <svg
       className={className}
-      viewBox="1.31 2.76 21.37 18.7"
+      viewBox={SHIELD_VIEWBOX}
       fill="none"
       stroke="#000"
       strokeWidth={PRIMARY_ICON_BLACK_OUTLINE}
@@ -62,44 +54,55 @@ export function IconHeart({ className }: { className?: string }) {
       preserveAspectRatio="xMidYMid meet"
       aria-hidden
     >
-      <path
-        d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-        fill="currentColor"
-      />
+      <path d={LUCIDE_HEART_PATH_D} fill="currentColor" />
     </svg>
   );
 }
 
 export function IconShield({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox={SHIELD_VIEWBOX} fill="none" aria-hidden>
+    <svg
+      className={className}
+      viewBox={SHIELD_VIEWBOX}
+      fill="none"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      preserveAspectRatio="xMidYMid meet"
+      aria-hidden
+    >
       <ShieldHeaterOutline />
     </svg>
   );
 }
 
 /**
- * Pentagram for spell save DC — five-point star inside an enclosing circle that
- * touches the outer tips.
+ * Spell save DC — filled white pentagon + black hairline (like heart/shield) so overlaid DC reads clearly.
+ * Config key `spellStar` is historical.
  */
-export function IconSpellSaveTriangle({ className }: { className?: string }) {
+export function IconSpellSaveD20({ className }: { className?: string }) {
   return (
     <svg
       className={className}
-      viewBox="0 0 24 24"
+      viewBox={SHIELD_VIEWBOX}
       fill="none"
-      stroke="#000"
-      strokeWidth={PRIMARY_STAT_ICON_STROKE}
       strokeLinecap="round"
       strokeLinejoin="round"
       preserveAspectRatio="xMidYMid meet"
       aria-hidden
+      style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.5))' }}
     >
-      <circle cx="12" cy="12" r="8.8" />
-      <path d="M12 3.2L17.17 19.12L3.64 9.28H20.36L6.83 19.12L12 3.2z" fill="currentColor" />
+      <path
+        d={SPELL_SAVE_PENTAGON_PATH_D}
+        fill="#ffffff"
+        stroke="#000"
+        strokeWidth={PRIMARY_STAT_ICON_STROKE}
+      />
     </svg>
   );
 }
+
+/** @deprecated Prefer {@link IconSpellSaveD20}; kept for existing imports. */
+export const IconSpellSaveTriangle = IconSpellSaveD20;
 
 export function IconEye({ className }: { className?: string }) {
   return (

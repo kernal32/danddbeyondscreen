@@ -56,5 +56,34 @@ export function openAppDatabase(dbPath: string): Database.Database {
   if (!prefCols.some((c) => c.name === 'theme_preferences_json')) {
     db.exec(`ALTER TABLE user_preferences ADD COLUMN theme_preferences_json TEXT`);
   }
+  if (!prefCols.some((c) => c.name === 'combined_layout_presets_json')) {
+    db.exec(`ALTER TABLE user_preferences ADD COLUMN combined_layout_presets_json TEXT`);
+  }
+  const userCols = db.prepare(`PRAGMA table_info(users)`).all() as { name: string }[];
+  if (!userCols.some((c) => c.name === 'deleted_at')) {
+    db.exec(`ALTER TABLE users ADD COLUMN deleted_at INTEGER`);
+  }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS admin_audit_log (
+      id TEXT PRIMARY KEY NOT NULL,
+      actor_user_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      target_user_id TEXT,
+      ip TEXT,
+      user_agent TEXT,
+      detail_json TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_admin_audit_actor ON admin_audit_log(actor_user_id);
+    CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON admin_audit_log(created_at);
+    CREATE TABLE IF NOT EXISTS user_billing (
+      user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT,
+      plan_tier TEXT,
+      subscription_status TEXT,
+      current_period_end INTEGER
+    );
+  `);
   return db;
 }

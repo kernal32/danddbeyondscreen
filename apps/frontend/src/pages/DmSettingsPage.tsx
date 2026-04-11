@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import type { PartyCardDisplayOptions, TableLayout } from '@ddb/shared-types';
-import { mergePartyCardDisplayOptions } from '@ddb/shared-types';
+import type { TableLayout } from '@ddb/shared-types/layout';
+import type { PartyCardDisplayOptions } from '@ddb/shared-types/party-card-display';
+import { mergePartyCardDisplayOptions } from '@ddb/shared-types/party-card-display';
 import { apiGet, apiPatch, apiPost, apiPut, ApiHttpError } from '../api';
+import { DEBUG_DISABLE_DISPLAY_INITIATIVE_PRIVACY } from '../debug/displayInitiativePrivacy';
 import PartyWidgetOptionsPanel from '../components/settings/PartyWidgetOptionsPanel';
 import { USER_EMAIL_KEY, USER_TOKEN_KEY } from '../auth-storage';
 import { useSessionSocket } from '../hooks/useSessionSocket';
@@ -112,6 +114,15 @@ export default function DmSettingsPage() {
     emit('session:setSeed', { seedCharacterId: n });
   };
 
+  const patchDisplayInitiativeMask = async (next: {
+    displayInitiativeMaskTotals: boolean;
+    displayInitiativeRevealLowest: boolean;
+  }) => {
+    if (!sessionId || !dmToken || sessionLost) return;
+    await apiPatch(`/api/sessions/${sessionId}`, next, dmToken);
+    emit('session:setDisplayInitiativeMask', next);
+  };
+
   const refreshParty = () => emit('party:refresh');
 
   const saveDisplayGatePin = async () => {
@@ -198,6 +209,7 @@ export default function DmSettingsPage() {
       try {
         const me = await apiGet<{
           email: string;
+          isAdmin?: boolean;
           preferences: {
             defaultSeedCharacterId: number | null;
             tableLayout: TableLayout | null;
@@ -231,7 +243,25 @@ export default function DmSettingsPage() {
     })();
   };
 
-  if (!sessionId || !dmToken) return null;
+  if (!sessionId || !dmToken) {
+    return (
+      <div className="theme-dark-arcane min-h-dvh flex flex-col items-center justify-center gap-4 px-6 py-12 text-center">
+        <p className="max-w-md text-base text-[var(--text)]">
+          No table session in this browser tab. Open{' '}
+          <Link to="/" className="text-sky-400 underline hover:text-sky-300">
+            Home
+          </Link>{' '}
+          and start or continue a table first.
+        </p>
+        <Link
+          to="/"
+          className="rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white hover:bg-sky-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+        >
+          Go to Home
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen p-4 md:p-6 max-w-4xl mx-auto space-y-6">
@@ -285,7 +315,14 @@ export default function DmSettingsPage() {
             >
               Create new theme
             </Link>{' '}
-            — name, colours, and palette-based UI tokens (saved per account).
+            — name, colours, and palette-based UI tokens (saved per account).{' '}
+            <Link
+              to="/dm/settings/initiative-customizer"
+              className="text-sky-400 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded"
+            >
+              Party card grid customizer
+            </Link>{' '}
+            for TV combined init and custom full cards (drag/resize layout).
           </p>
         )}
       </div>
@@ -549,6 +586,61 @@ export default function DmSettingsPage() {
           </p>
         ) : null}
       </section>
+
+      {!DEBUG_DISABLE_DISPLAY_INITIATIVE_PRIVACY ? (
+        <section className="rounded-xl border border-white/10 bg-[var(--surface)] p-4 md:p-6 space-y-3">
+          <h2 className="font-semibold text-lg text-[var(--accent)]">Display initiative privacy</h2>
+          <p className="text-sm text-[var(--muted)]">
+            When enabled, the table TV, phone initiative page, and combined party cards hide initiative totals and roll
+            breakdowns except for whoever is first in the current order (and optionally everyone tied for the lowest total
+            in that order). Turn order stays visible. The Master Console always shows full numbers.
+          </p>
+          <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--text)]">
+            <input
+              type="checkbox"
+              className="mt-0.5 shrink-0"
+              checked={state?.displayInitiativeMaskTotals === true}
+              disabled={sessionLost || !sessionId}
+              onChange={(e) => {
+                const on = e.target.checked;
+                void patchDisplayInitiativeMask({
+                  displayInitiativeMaskTotals: on,
+                  displayInitiativeRevealLowest: on ? state?.displayInitiativeRevealLowest === true : false,
+                });
+              }}
+            />
+            <span>Hide initiative totals on display (order still visible)</span>
+          </label>
+          <label
+            className={`flex cursor-pointer items-start gap-2 text-sm ${
+              state?.displayInitiativeMaskTotals === true ? 'text-[var(--text)]' : 'text-[var(--muted)]'
+            }`}
+          >
+            <input
+              type="checkbox"
+              className="mt-0.5 shrink-0"
+              checked={state?.displayInitiativeRevealLowest === true}
+              disabled={sessionLost || !sessionId || state?.displayInitiativeMaskTotals !== true}
+              onChange={(e) => {
+                void patchDisplayInitiativeMask({
+                  displayInitiativeMaskTotals: state?.displayInitiativeMaskTotals === true,
+                  displayInitiativeRevealLowest: e.target.checked,
+                });
+              }}
+            />
+            <span>Also reveal anyone tied for lowest initiative in the current order</span>
+          </label>
+        </section>
+      ) : (
+        <section className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 md:p-6">
+          <p className="text-sm text-amber-100/90">
+            <strong className="font-semibold">Debug:</strong> display initiative privacy is disabled in code (
+            <code className="rounded bg-black/30 px-1 font-mono text-xs">debug/displayInitiativePrivacy.ts</code>). Rebuild
+            after setting <code className="font-mono text-xs">DEBUG_DISABLE_DISPLAY_INITIATIVE_PRIVACY</code> to{' '}
+            <code className="font-mono text-xs">false</code>.
+          </p>
+        </section>
+      )}
 
       {devMode ? (
         <section className="rounded-xl border border-teal-500/25 bg-[var(--surface)] p-4 md:p-6 space-y-2">

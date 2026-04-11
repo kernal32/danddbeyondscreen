@@ -1,4 +1,4 @@
-import type { WidgetInstance } from '@ddb/shared-types';
+import type { WidgetInstance } from '@ddb/shared-types/layout';
 
 /** Match `.table-layout-grid--fill` gap `0.5rem` (8px at default root font). */
 export const TABLE_LAYOUT_FILL_GAP_PX = 8;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { RollMode } from '@ddb/shared-types';
+import type { RollMode } from '@ddb/shared-types/initiative';
 
 type InitiativeDualRollRevealProps = {
   rolls: [number, number];

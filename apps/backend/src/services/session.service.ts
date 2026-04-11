@@ -14,7 +14,11 @@ import type {
   TimedEffect,
 } from '@ddb/shared-types';
 import { createDefaultTableLayout, DEFAULT_PARTY_CARD_DISPLAY_OPTIONS } from '@ddb/shared-types';
-import { emptyInitiativeState, filterInitiativeExcludingEntityIds } from './initiative.service.js';
+import {
+  emptyInitiativeState,
+  filterInitiativeExcludingEntityIds,
+  syncInitiativeConditionsFromParty,
+} from './initiative.service.js';
 
 function token(): string {
   return randomBytes(18).toString('hex');
@@ -34,6 +38,53 @@ function emptyParty(): PartySnapshot {
   };
 }
 
+/** Drop bulky raw DDB payloads before attaching a party to a live session (WS / SQLite). */
+export function stripDdbSheetJsonFromParty(party: PartySnapshot): PartySnapshot {
+  return {
+    ...party,
+    characters: party.characters.map((c) => {
+      const { ddbSheetJson: _drop, ...rest } = c;
+      return rest;
+    }),
+  };
+}
+
+/**
+ * Merge `party:manualHp` without freezing stale temp HP: if the client sends `currentHp` but omits
+ * `tempHp`, drop any prior `tempHp` override so the live party row (DDB ingest) supplies temp again.
+ */
+export function applyManualHpPatch(
+  overrides: SessionRecord['manualOverrides'],
+  characterId: string,
+  payload: { currentHp?: number; tempHp?: number },
+): void {
+  const rid = String(characterId);
+  const hasCur = payload.currentHp !== undefined && Number.isFinite(payload.currentHp);
+  const hasTmp = payload.tempHp !== undefined && Number.isFinite(payload.tempHp);
+  if (!hasCur && !hasTmp) return;
+  const prev = overrides[rid] ?? {};
+  const next = { ...prev };
+  if (hasCur) next.currentHp = Math.floor(Number(payload.currentHp));
+  if (hasTmp) next.tempHp = Math.max(0, Math.floor(Number(payload.tempHp)));
+  else if (hasCur) delete next.tempHp;
+  overrides[rid] = next;
+}
+
+/** After replacing `session.party`, drop manual `tempHp` so the new sheet snapshot controls temp HP. */
+export function clearManualTempHpOverridesForParty(session: Pick<SessionRecord, 'party' | 'manualOverrides'>): void {
+  for (const c of session.party.characters) {
+    const id = String(c.id);
+    const o = session.manualOverrides[id];
+    if (!o || o.tempHp === undefined) continue;
+    const { tempHp: _drop, ...rest } = o;
+    if (Object.keys(rest).length < 1) {
+      delete session.manualOverrides[id];
+    } else {
+      session.manualOverrides[id] = rest;
+    }
+  }
+}
+
 export function mergePartyOverrides(
   party: PartySnapshot,
   overrides: Record<
@@ -46,11 +97,15 @@ export function mergePartyOverrides(
     characters: party.characters.map((c) => {
       const o = overrides[String(c.id)];
       if (!o) return { ...c };
+      const baseConds = c.conditions ?? [];
+      /** Empty override must not wipe newer ingest (stale `[]` persisted from older clients). Prefer party when it has labels. */
+      const useConditionsOverride =
+        o.conditions !== undefined && !(o.conditions.length === 0 && baseConds.length > 0);
       return {
         ...c,
         ...(o.currentHp !== undefined ? { currentHp: o.currentHp } : {}),
         ...(o.tempHp !== undefined ? { tempHp: o.tempHp } : {}),
-        ...(o.conditions !== undefined ? { conditions: o.conditions } : {}),
+        ...(useConditionsOverride ? { conditions: o.conditions } : {}),
         ...(o.absent !== undefined ? { absent: o.absent } : {}),
         ...(o.inspired !== undefined ? { inspired: o.inspired } : {}),
       };
@@ -79,7 +134,11 @@ export class SessionService {
   restoreSession(record: SessionRecord): void {
     if (this.sessions.has(record.sessionId)) return;
     if (this.byDisplay.has(record.displayToken) || this.byDm.has(record.dmToken)) return;
-    this.sessions.set(record.sessionId, record);
+    const stored: SessionRecord = {
+      ...record,
+      party: record.party ? stripDdbSheetJsonFromParty(record.party) : record.party,
+    };
+    this.sessions.set(record.sessionId, stored);
     this.byDisplay.set(record.displayToken, record.sessionId);
     this.byDm.set(record.dmToken, record.sessionId);
   }
@@ -105,6 +164,8 @@ export class SessionService {
       displayPinRevision: 1,
       theme: 'minimal',
       partyCardDisplay: { ...DEFAULT_PARTY_CARD_DISPLAY_OPTIONS },
+      displayInitiativeMaskTotals: false,
+      displayInitiativeRevealLowest: false,
       tableLayout: createDefaultTableLayout(),
       seedCharacterId: null,
       pollIntervalMs: 180_000,
@@ -190,6 +251,8 @@ export class SessionService {
       theme: session.theme,
       themePalette: session.themePalette?.length ? session.themePalette : null,
       partyCardDisplay: session.partyCardDisplay ?? { ...DEFAULT_PARTY_CARD_DISPLAY_OPTIONS },
+      displayInitiativeMaskTotals: session.displayInitiativeMaskTotals === true,
+      displayInitiativeRevealLowest: session.displayInitiativeRevealLowest === true,
       tableLayout: session.tableLayout ?? createDefaultTableLayout(),
       party,
       initiative,
@@ -213,7 +276,10 @@ export class SessionService {
   }
 
   setParty(session: SessionRecord, party: PartySnapshot): void {
-    session.party = party;
+    session.party = stripDdbSheetJsonFromParty(party);
+    clearManualTempHpOverridesForParty(session);
+    const merged = mergePartyOverrides(session.party, session.manualOverrides);
+    session.initiative = syncInitiativeConditionsFromParty(session.initiative, merged);
     this.markDirty(session);
   }
 
@@ -239,6 +305,19 @@ export class SessionService {
 
   setPartyCardDisplay(session: SessionRecord, options: SessionRecord['partyCardDisplay']): void {
     session.partyCardDisplay = options;
+    this.markDirty(session);
+  }
+
+  setDisplayInitiativeMaskSettings(
+    session: SessionRecord,
+    patch: { displayInitiativeMaskTotals?: boolean; displayInitiativeRevealLowest?: boolean },
+  ): void {
+    if (patch.displayInitiativeMaskTotals !== undefined) {
+      session.displayInitiativeMaskTotals = patch.displayInitiativeMaskTotals;
+    }
+    if (patch.displayInitiativeRevealLowest !== undefined) {
+      session.displayInitiativeRevealLowest = patch.displayInitiativeRevealLowest;
+    }
     this.markDirty(session);
   }
 

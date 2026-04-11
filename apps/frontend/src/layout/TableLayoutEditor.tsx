@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { PublicSessionState, TableLayout, WidgetInstance, WidgetType } from '@ddb/shared-types';
+import type { TableLayout, WidgetInstance, WidgetType } from '@ddb/shared-types/layout';
+import type { PublicSessionState } from '@ddb/shared-types/session';
 import {
   getInitiativeDensitySelectValue,
+  getPartyHighestRollSide,
   getPartyWidgetView,
   type InitiativeWidgetDensityMode,
-} from '@ddb/shared-types';
+  type PartyWidgetView,
+} from '@ddb/shared-types/widget-config';
 import { renderTableWidget } from '../widgets/renderTableWidget';
 import { sortWidgets } from '../widgets/sortWidgets';
 import { WIDGET_REGISTRY } from '../widgets/widgetRegistry';
@@ -17,6 +20,14 @@ import {
   tableLayoutRowCount,
   tableLayoutRowStride,
 } from './tableLayoutGrid';
+import {
+  getWidgetLayoutV2,
+  layoutV2ToLegacyGrid,
+  withWidgetLayoutV2Config,
+  type AnchorX,
+  type AnchorY,
+  type WidgetLayoutV2,
+} from './layoutV2';
 
 const PALETTE_TYPES = (Object.keys(WIDGET_REGISTRY) as WidgetType[]).sort((a, b) =>
   WIDGET_REGISTRY[a].label.localeCompare(WIDGET_REGISTRY[b].label),
@@ -32,8 +43,10 @@ const DEFAULT_SIZE: Record<WidgetType, { w: number; h: number }> = {
 };
 
 type PointerSession =
-  | { kind: 'move'; startX: number; startY: number; orig: WidgetInstance }
+  | { kind: 'move'; startX: number; startY: number; orig: WidgetInstance; axis?: 'x' | 'y' }
   | { kind: 'resize'; startX: number; startY: number; orig: WidgetInstance };
+
+type GuideLine = { axis: 'x' | 'y'; px: number };
 
 export default function TableLayoutEditor({
   state,
@@ -46,6 +59,11 @@ export default function TableLayoutEditor({
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addType, setAddType] = useState<WidgetType>('initiative');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [moveMode, setMoveMode] = useState<'grid' | 'free'>('grid');
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [snapPx, setSnapPx] = useState(8);
+  const [guides, setGuides] = useState<GuideLine[]>([]);
   const gridRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<PointerSession | null>(null);
 
@@ -84,13 +102,91 @@ export default function TableLayoutEditor({
       if (ix < 0) return prev;
 
       if (s.kind === 'move') {
-        const dx = Math.round((e.clientX - s.startX) / colStride);
-        const dy = Math.round((e.clientY - s.startY) / rowStride);
-        let nx = s.orig.x + dx;
-        let ny = s.orig.y + dy;
-        nx = Math.max(0, Math.min(12 - s.orig.w, nx));
-        ny = Math.max(0, ny);
-        next.widgets[ix] = { ...next.widgets[ix], x: nx, y: ny };
+        let pxDx = e.clientX - s.startX;
+        let pxDy = e.clientY - s.startY;
+
+        if (e.shiftKey) {
+          if (!s.axis) s.axis = Math.abs(pxDx) >= Math.abs(pxDy) ? 'x' : 'y';
+          if (s.axis === 'x') pxDy = 0;
+          else pxDx = 0;
+        } else {
+          s.axis = undefined;
+        }
+
+        if (moveMode === 'grid') {
+          const dx = Math.round(pxDx / colStride);
+          const dy = Math.round(pxDy / rowStride);
+          let nx = s.orig.x + dx;
+          let ny = s.orig.y + dy;
+          nx = Math.max(0, Math.min(12 - s.orig.w, nx));
+          ny = Math.max(0, ny);
+          const v2 = getWidgetLayoutV2(s.orig, rc);
+          const merged = withWidgetLayoutV2Config({ ...next.widgets[ix], x: nx, y: ny }, {
+            ...v2,
+            xPct: nx / 12,
+            yPct: ny / rc,
+            wPct: s.orig.w / 12,
+            hPct: s.orig.h / rc,
+          });
+          next.widgets[ix] = merged;
+          setGuides([]);
+        } else {
+          const origV2 = getWidgetLayoutV2(s.orig, rc);
+          const pxW = origV2.wPct * rect.width;
+          const pxH = origV2.hPct * rect.height;
+          const anchorBaseX = origV2.xPct * rect.width;
+          const anchorBaseY = origV2.yPct * rect.height;
+          let nextAnchorX = anchorBaseX + pxDx;
+          let nextAnchorY = anchorBaseY + pxDy;
+          if (snapEnabled && snapPx > 0) {
+            nextAnchorX = Math.round(nextAnchorX / snapPx) * snapPx;
+            nextAnchorY = Math.round(nextAnchorY / snapPx) * snapPx;
+          }
+          const vSnap = 6;
+          const otherGuidesX: number[] = [0, rect.width / 2, rect.width];
+          const otherGuidesY: number[] = [0, rect.height / 2, rect.height];
+          for (const ow of prev.widgets) {
+            if (ow.id === s.orig.id) continue;
+            const ov2 = getWidgetLayoutV2(ow, rc);
+            const ox = ov2.xPct * rect.width;
+            const oy = ov2.yPct * rect.height;
+            const owW = ov2.wPct * rect.width;
+            const owH = ov2.hPct * rect.height;
+            const left = ov2.anchorX === 'left' ? ox : ov2.anchorX === 'center' ? ox - owW / 2 : ox - owW;
+            const top = ov2.anchorY === 'top' ? oy : ov2.anchorY === 'center' ? oy - owH / 2 : oy - owH;
+            otherGuidesX.push(left, left + owW / 2, left + owW);
+            otherGuidesY.push(top, top + owH / 2, top + owH);
+          }
+          let gx: number | null = null;
+          let gy: number | null = null;
+          for (const g of otherGuidesX) {
+            if (Math.abs(g - nextAnchorX) <= vSnap) {
+              nextAnchorX = g;
+              gx = g;
+              break;
+            }
+          }
+          for (const g of otherGuidesY) {
+            if (Math.abs(g - nextAnchorY) <= vSnap) {
+              nextAnchorY = g;
+              gy = g;
+              break;
+            }
+          }
+          const nextV2: WidgetLayoutV2 = {
+            ...origV2,
+            xPct: Math.max(0, Math.min(1, nextAnchorX / rect.width)),
+            yPct: Math.max(0, Math.min(1, nextAnchorY / rect.height)),
+            wPct: Math.max(1 / 12, Math.min(1, pxW / rect.width)),
+            hPct: Math.max(1 / rc, Math.min(1, pxH / rect.height)),
+          };
+          const legacy = layoutV2ToLegacyGrid(nextV2, rc);
+          next.widgets[ix] = withWidgetLayoutV2Config({ ...next.widgets[ix], ...legacy }, nextV2);
+          const nextGuides: GuideLine[] = [];
+          if (gx != null) nextGuides.push({ axis: 'x', px: gx });
+          if (gy != null) nextGuides.push({ axis: 'y', px: gy });
+          setGuides(nextGuides);
+        }
       } else {
         const dx = Math.round((e.clientX - s.startX) / colStride);
         const dy = Math.round((e.clientY - s.startY) / rowStride);
@@ -98,23 +194,37 @@ export default function TableLayoutEditor({
         let nh = s.orig.h + dy;
         nw = Math.max(1, Math.min(12 - s.orig.x, nw));
         nh = Math.max(1, nh);
-        next.widgets[ix] = { ...next.widgets[ix], w: nw, h: nh };
+        const v2 = getWidgetLayoutV2(s.orig, rc);
+        const nextV2: WidgetLayoutV2 = {
+          ...v2,
+          wPct: Math.max(1 / 12, Math.min(1, nw / 12)),
+          hPct: Math.max(1 / rc, Math.min(1, nh / rc)),
+        };
+        next.widgets[ix] = withWidgetLayoutV2Config({ ...next.widgets[ix], w: nw, h: nh }, nextV2);
       }
       return next;
     });
     setDirty(true);
-  }, []);
+  }, [moveMode, snapEnabled, snapPx]);
 
   useEffect(() => {
+    const move = (e: PointerEvent) => {
+      const s = sessionRef.current;
+      if (!s) return;
+      applyPointerResult(e, s);
+    };
     const finish = (e: PointerEvent) => {
       const s = sessionRef.current;
       if (!s) return;
       sessionRef.current = null;
       applyPointerResult(e, s);
+      setGuides([]);
     };
+    window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', finish);
     window.addEventListener('pointercancel', finish);
     return () => {
+      window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', finish);
       window.removeEventListener('pointercancel', finish);
     };
@@ -139,8 +249,28 @@ export default function TableLayoutEditor({
       }
       return { ...d, widgets: [...d.widgets, { id, type: addType, x, y, w, h }] };
     });
+    setSelectedId(id);
     setDirty(true);
     setError(null);
+  };
+
+  const selected = selectedId ? widgets.find((w) => w.id === selectedId) ?? null : null;
+
+  const patchSelectedLayoutV2 = (patch: Partial<WidgetLayoutV2>) => {
+    if (!selectedId) return;
+    setDraft((prev) => {
+      const rc = tableLayoutRowCount(prev.widgets);
+      const next = { ...prev, widgets: prev.widgets.map((x) => ({ ...x })) };
+      const ix = next.widgets.findIndex((w) => w.id === selectedId);
+      if (ix < 0) return prev;
+      const w = next.widgets[ix];
+      const base = getWidgetLayoutV2(w, rc);
+      const merged: WidgetLayoutV2 = { ...base, ...patch };
+      const legacy = layoutV2ToLegacyGrid(merged, rc);
+      next.widgets[ix] = withWidgetLayoutV2Config({ ...w, ...legacy }, merged);
+      return next;
+    });
+    setDirty(true);
   };
 
   const handleApply = () => {
@@ -187,6 +317,32 @@ export default function TableLayoutEditor({
       </div>
 
       <div className="flex flex-wrap items-end gap-2">
+        <label className="flex items-center gap-1 text-xs text-[var(--muted)]">
+          Move mode
+          <select
+            className="rounded border border-white/20 bg-black/40 px-2 py-1 text-xs text-[var(--text)]"
+            value={moveMode}
+            onChange={(e) => setMoveMode(e.target.value === 'free' ? 'free' : 'grid')}
+          >
+            <option value="grid">Grid</option>
+            <option value="free">Free</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-1 text-xs text-[var(--muted)]">
+          <input type="checkbox" checked={snapEnabled} onChange={(e) => setSnapEnabled(e.target.checked)} />
+          Snap
+        </label>
+        <label className="flex items-center gap-1 text-xs text-[var(--muted)]">
+          Snap px
+          <input
+            type="number"
+            min={1}
+            max={64}
+            className="w-16 rounded border border-white/20 bg-black/40 px-1 py-0.5 text-xs text-[var(--text)]"
+            value={snapPx}
+            onChange={(e) => setSnapPx(Math.max(1, Math.min(64, Number(e.target.value) || 8)))}
+          />
+        </label>
         <label className="flex flex-col gap-1 text-xs text-[var(--muted)]">
           Add widget
           <select
@@ -236,7 +392,10 @@ export default function TableLayoutEditor({
             >
               {widgets.map((w) => {
                 const previewLarge = w.type === 'initiative' || w.type === 'party';
-                const body = renderTableWidget(w, renderState, previewLarge, undefined, { fillCell: true });
+                const body = renderTableWidget(w, renderState, 'dm', previewLarge, undefined, {
+                  fillCell: true,
+                  layoutRowCount: rowCount,
+                });
                 const surface = widgetThemeSurfaceClassFromSession(
                   renderState.theme,
                   w.themeOverride,
@@ -257,7 +416,7 @@ export default function TableLayoutEditor({
                   setError(null);
                 };
 
-                const setPartyView = (view: 'full' | 'compact') => {
+                const setPartyView = (view: PartyWidgetView) => {
                   if (view === 'full') {
                     setDraft((d) => ({
                       ...d,
@@ -269,7 +428,7 @@ export default function TableLayoutEditor({
                       }),
                     }));
                   } else {
-                    patchConfig({ view: 'compact' });
+                    patchConfig({ view });
                   }
                   setDirty(true);
                   setError(null);
@@ -296,11 +455,12 @@ export default function TableLayoutEditor({
                 return (
                   <div
                     key={w.id}
-                    className={`relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border-2 border-violet-500/50 shadow-md ${surface}`}
+                    className={`relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border-2 shadow-md ${selectedId === w.id ? 'border-cyan-300' : 'border-violet-500/50'} ${surface}`}
                     style={{
                       gridColumn: `${w.x + 1} / span ${w.w}`,
                       gridRow: `${w.y + 1} / span ${w.h}`,
                     }}
+                    onPointerDown={() => setSelectedId(w.id)}
                   >
                     <div className="flex shrink-0 flex-col gap-0.5 border-b border-white/10 bg-black/40 px-1 py-0.5">
                       <div className="flex items-center gap-1">
@@ -310,6 +470,7 @@ export default function TableLayoutEditor({
                           className="cursor-grab touch-none rounded px-1.5 py-1 text-[var(--muted)] hover:bg-white/10 active:cursor-grabbing focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
                           onPointerDown={(e) => {
                             e.preventDefault();
+                            setSelectedId(w.id);
                             sessionRef.current = {
                               kind: 'move',
                               startX: e.clientX,
@@ -337,12 +498,60 @@ export default function TableLayoutEditor({
                           <select
                             className="min-w-0 flex-1 rounded border border-white/20 bg-black/50 px-1 py-0.5 text-[var(--text)]"
                             value={getPartyWidgetView(w)}
-                            onChange={(e) => setPartyView(e.target.value === 'compact' ? 'compact' : 'full')}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setPartyView(
+                                v === 'compact'
+                                  ? 'compact'
+                                  : v === 'combined'
+                                    ? 'combined'
+                                    : v === 'customFull'
+                                      ? 'customFull'
+                                      : 'full',
+                              );
+                            }}
                             onClick={(e) => e.stopPropagation()}
                           >
                             <option value="full">Full cards (3 col)</option>
                             <option value="compact">Compact strip</option>
+                            <option value="combined">Combined init columns</option>
+                            <option value="customFull">Custom full cards (3 col, grid layout)</option>
                           </select>
+                        </label>
+                      ) : null}
+                      {w.type === 'party' && getPartyWidgetView(w) === 'combined' ? (
+                        <label className="flex items-center gap-1 text-[10px] text-[var(--muted)]">
+                          <span className="shrink-0">High</span>
+                          <select
+                            className="min-w-0 flex-1 rounded border border-white/20 bg-black/50 px-1 py-0.5 text-[var(--text)]"
+                            value={getPartyHighestRollSide(w)}
+                            onChange={(e) =>
+                              patchConfig({ highestRollSide: e.target.value === 'right' ? 'right' : 'left' })
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <option value="left">Left side</option>
+                            <option value="right">Right side</option>
+                          </select>
+                        </label>
+                      ) : null}
+                      {w.type === 'party' &&
+                      (getPartyWidgetView(w) === 'combined' || getPartyWidgetView(w) === 'customFull') ? (
+                        <label className="flex cursor-pointer items-center gap-1 text-[10px] text-[var(--muted)]">
+                          <input
+                            type="checkbox"
+                            className="shrink-0 rounded border-white/30"
+                            checked={
+                              !!(
+                                w.config &&
+                                typeof w.config === 'object' &&
+                                (w.config as { combinedStretch?: boolean }).combinedStretch
+                              )
+                            }
+                            onChange={(e) => patchConfig({ combinedStretch: e.target.checked })}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <span>Stretch cards to full cell height</span>
                         </label>
                       ) : null}
                       {w.type === 'initiative' ? (
@@ -362,7 +571,7 @@ export default function TableLayoutEditor({
                       ) : null}
                     </div>
                     <TableThemeProvider theme={widgetTheme}>
-                      <div className="min-h-0 flex-1 overflow-auto p-1 [&_*]:pointer-events-none">
+                      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-1.5 [&_*]:pointer-events-none">
                         {body ?? (
                           <p className="p-2 text-sm text-[var(--muted)]">{w.type === 'spacer' ? 'Spacer' : '—'}</p>
                         )}
@@ -374,6 +583,7 @@ export default function TableLayoutEditor({
                       className="absolute bottom-0.5 right-0.5 z-10 h-4 w-4 cursor-se-resize rounded-sm border border-violet-400/80 bg-violet-900/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
                       onPointerDown={(e) => {
                         e.preventDefault();
+                        setSelectedId(w.id);
                         sessionRef.current = {
                           kind: 'resize',
                           startX: e.clientX,
@@ -385,10 +595,82 @@ export default function TableLayoutEditor({
                   </div>
                 );
               })}
+              {guides.map((g, ix) =>
+                g.axis === 'x' ? (
+                  <div
+                    // eslint-disable-next-line react/no-array-index-key
+                    key={`gx-${ix}`}
+                    className="pointer-events-none absolute top-0 bottom-0 z-30 w-px bg-cyan-300/80"
+                    style={{ left: `${g.px}px` }}
+                  />
+                ) : (
+                  <div
+                    // eslint-disable-next-line react/no-array-index-key
+                    key={`gy-${ix}`}
+                    className="pointer-events-none absolute left-0 right-0 z-30 h-px bg-cyan-300/80"
+                    style={{ top: `${g.px}px` }}
+                  />
+                ),
+              )}
             </div>
           </div>
         </div>
       </div>
+      {selected && (
+        <div className="rounded-lg border border-white/15 bg-black/30 p-2">
+          <p className="mb-2 text-xs text-[var(--muted)]">
+            Selected: <span className="text-[var(--text)]">{selected.id}</span>
+          </p>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            <label className="text-xs text-[var(--muted)]">
+              Anchor X
+              <select
+                className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1 text-[var(--text)]"
+                value={getWidgetLayoutV2(selected, rowCount).anchorX}
+                onChange={(e) => patchSelectedLayoutV2({ anchorX: e.target.value as AnchorX })}
+              >
+                <option value="left">left</option>
+                <option value="center">center</option>
+                <option value="right">right</option>
+              </select>
+            </label>
+            <label className="text-xs text-[var(--muted)]">
+              Anchor Y
+              <select
+                className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1 text-[var(--text)]"
+                value={getWidgetLayoutV2(selected, rowCount).anchorY}
+                onChange={(e) => patchSelectedLayoutV2({ anchorY: e.target.value as AnchorY })}
+              >
+                <option value="top">top</option>
+                <option value="center">center</option>
+                <option value="bottom">bottom</option>
+              </select>
+            </label>
+            <label className="text-xs text-[var(--muted)]">
+              X %
+              <input
+                type="number"
+                min={0}
+                max={100}
+                className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1 text-[var(--text)]"
+                value={Math.round(getWidgetLayoutV2(selected, rowCount).xPct * 100)}
+                onChange={(e) => patchSelectedLayoutV2({ xPct: Math.max(0, Math.min(1, Number(e.target.value) / 100)) })}
+              />
+            </label>
+            <label className="text-xs text-[var(--muted)]">
+              Y %
+              <input
+                type="number"
+                min={0}
+                max={100}
+                className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1 text-[var(--text)]"
+                value={Math.round(getWidgetLayoutV2(selected, rowCount).yPct * 100)}
+                onChange={(e) => patchSelectedLayoutV2({ yPct: Math.max(0, Math.min(1, Number(e.target.value) / 100)) })}
+              />
+            </label>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

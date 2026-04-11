@@ -58,4 +58,32 @@ describe('parsePartySnapshotIngest', () => {
   it('rejects empty characters', () => {
     expect(parsePartySnapshotIngest({ campaign: null, characters: [], fetchedAt: null, upstreamDate: null, error: null })).toBeNull();
   });
+
+  it('rejects ddbSheetJson when not a plain object', () => {
+    expect(
+      parsePartySnapshotIngest({
+        campaign: null,
+        characters: [
+          {
+            id: '1',
+            name: 'A',
+            avatarUrl: '',
+            ac: 15,
+            maxHp: 10,
+            currentHp: 10,
+            tempHp: 0,
+            passivePerception: 12,
+            passiveInvestigation: 11,
+            passiveInsight: 10,
+            conditions: [],
+            source: 'manual',
+            ddbSheetJson: [] as unknown as Record<string, unknown>,
+          },
+        ],
+        fetchedAt: null,
+        upstreamDate: null,
+        error: null,
+      }),
+    ).toBeNull();
+  });
 });

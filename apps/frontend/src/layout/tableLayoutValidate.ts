@@ -1,5 +1,4 @@
-import type { TableLayout, WidgetType } from '@ddb/shared-types';
-import { TABLE_LAYOUT_VERSION } from '@ddb/shared-types';
+import { TABLE_LAYOUT_VERSION, type TableLayout, type WidgetType } from '@ddb/shared-types/layout';
 
 const WIDGET_TYPES = new Set<WidgetType>([
   'party',

@@ -1,9 +1,10 @@
 /**
- * Spell save DC badge: arcane triangle (same stat icon frame as heart/shield) + centered labels like {@link ArmorClassShieldBadge}.
+ * Spell save DC badge: white pentagon (same stat icon frame as heart/shield) + centered labels like {@link ArmorClassShieldBadge}.
  */
 
 import type { CSSProperties } from 'react';
-import { IconSpellSaveTriangle } from '../party/PartyCardStatIcons';
+import { IconSpellSaveD20 } from '../party/PartyCardStatIcons';
+import StatBadgeShell from './StatBadgeShell';
 
 type SpellSaveBookBadgeProps = {
   spellSaveDc: number;
@@ -13,6 +14,8 @@ type SpellSaveBookBadgeProps = {
   captionClassName: string;
   valueClassName: string;
   textOutlineStyle?: CSSProperties;
+  iconGraphicStyle?: CSSProperties;
+  textOverlayStyle?: CSSProperties;
 };
 
 export default function SpellSaveBookBadge({
@@ -22,34 +25,25 @@ export default function SpellSaveBookBadge({
   captionClassName,
   valueClassName,
   textOutlineStyle,
+  iconGraphicStyle,
+  textOverlayStyle,
 }: SpellSaveBookBadgeProps) {
   const label = String(spellSaveDc);
-  const blackTextOutline =
-    textOutlineStyle ??
-    ({ textShadow: '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000' } as const);
 
   return (
-    <div
-      className={`${frameClassName} ${className ?? ''}`}
-      role="img"
-      aria-label={`Spell save DC ${label}`}
-    >
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <div className="absolute inset-[3px] flex items-center justify-center overflow-hidden">
-          <IconSpellSaveTriangle className="h-full w-full text-[var(--ac-tint)] opacity-90" />
-        </div>
-      </div>
-      <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-0.5 px-1 text-center">
-        <span className={`${captionClassName} w-full text-center text-white`} style={blackTextOutline}>
-          Spell
-        </span>
-        <span className={`${valueClassName} max-w-full text-center leading-none text-white`} style={blackTextOutline}>
-          {label}
-        </span>
-        <span className={`${captionClassName} w-full text-center text-white`} style={blackTextOutline}>
-          Save
-        </span>
-      </div>
-    </div>
+    <StatBadgeShell
+      frameClassName={frameClassName}
+      className={className}
+      ariaLabel={`Spell save DC ${label}`}
+      icon={<IconSpellSaveD20 className="h-full w-full" />}
+      captionClassName={captionClassName}
+      valueClassName={valueClassName}
+      value={label}
+      topCaption="Spell"
+      bottomCaption="Save"
+      textOutlineStyle={textOutlineStyle}
+      iconGraphicStyle={iconGraphicStyle}
+      textOverlayStyle={textOverlayStyle}
+    />
   );
 }

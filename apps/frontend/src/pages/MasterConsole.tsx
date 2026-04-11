@@ -1,20 +1,24 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import QRCode from 'react-qr-code';
-import type { PublicSessionState, SavedCustomTheme, TableTheme, UserThemePreferences } from '@ddb/shared-types';
-import { TABLE_THEME_IDS } from '@ddb/shared-types';
-import { createDefaultTableLayout } from '@ddb/shared-types';
+import LazyQrCode from '../components/LazyQrCode';
+import { createDefaultTableLayout } from '@ddb/shared-types/layout';
+import type { PublicSessionState } from '@ddb/shared-types/session';
+import type { SavedCustomTheme, UserThemePreferences } from '@ddb/shared-types/theme-preferences';
+import { TABLE_THEME_IDS, type TableTheme } from '@ddb/shared-types/themes';
 import { apiGet, apiPatch, apiPostWithHeaders, ApiHttpError } from '../api';
 import { USER_TOKEN_KEY } from '../auth-storage';
 import { useSessionSocket } from '../hooks/useSessionSocket';
-import TableLayoutEditor from '../layout/TableLayoutEditor';
 import { applySessionVisualTheme, THEME_LABELS } from '../theme/tableTheme';
 import { TableThemeProvider } from '../theme/TableThemeContext';
 import MasterPartyStrip from '../components/MasterPartyStrip';
+import { mapPartyForPartyWidget } from '../util/characterAvatarFallback';
 import { getAppOriginForLinks } from '../util/appOrigin';
 
 const AUTO_IMPORT_PARTY_LS = 'ddb_dm_autoImportParty';
 const SETTINGS_DEV_MODE_LS = 'ddb_settings_dev_mode';
+
+/** Deferred: pulls in `widgetRegistry` + all table widgets; static import caused TDZ/runtime init issues with Vite + React 19. */
+const TableLayoutEditor = lazy(() => import('../layout/TableLayoutEditor'));
 
 export default function MasterConsole() {
   const nav = useNavigate();
@@ -35,6 +39,8 @@ export default function MasterConsole() {
     ? `${appOrigin}/initiative-remote/${encodeURIComponent(displayToken)}`
     : null;
   const [showPhoneQr, setShowPhoneQr] = useState(false);
+  /** Load the heavy layout editor chunk only after the user opens the details (avoids init-order crashes on /master). */
+  const [layoutEditorMounted, setLayoutEditorMounted] = useState(false);
   const { state, connected, emit } = useSessionSocket(sessionId, dmToken, { uiMode: 'dm' });
   const [sessionLost, setSessionLost] = useState(false);
   const [authEnabled, setAuthEnabled] = useState(false);
@@ -119,6 +125,10 @@ export default function MasterConsole() {
   }, [state?.theme, state?.themePalette]);
 
   useEffect(() => {
+    setLayoutEditorMounted(false);
+  }, [state?.sessionId]);
+
+  useEffect(() => {
     const t = localStorage.getItem(USER_TOKEN_KEY);
     if (!t) {
       setSavedAccountThemes([]);
@@ -134,7 +144,25 @@ export default function MasterConsole() {
     })();
   }, [sessionId, authEnabled]);
 
-  if (!sessionId || !dmToken) return null;
+  if (!sessionId || !dmToken) {
+    return (
+      <div className="theme-dark-arcane min-h-dvh flex flex-col items-center justify-center gap-4 px-6 py-12 text-center">
+        <p className="max-w-md text-base text-[var(--text)]">
+          No table session in this browser tab. Start or continue a table from{' '}
+          <Link to="/" className="text-sky-400 underline hover:text-sky-300">
+            Home
+          </Link>{' '}
+          (use <strong className="text-[var(--text)]">Continue in this browser</strong> if you already have a game).
+        </p>
+        <Link
+          to="/"
+          className="rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white hover:bg-sky-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+        >
+          Go to Home
+        </Link>
+      </div>
+    );
+  }
 
   const s = state as PublicSessionState | null;
   const party = s?.party;
@@ -206,7 +234,7 @@ export default function MasterConsole() {
                 .
               </p>
               <div className="mt-4 flex justify-center rounded-lg bg-white p-3 [&_svg]:block">
-                <QRCode value={initiativeRemoteUrl} size={200} />
+                <LazyQrCode value={initiativeRemoteUrl} size={200} />
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
@@ -398,7 +426,12 @@ export default function MasterConsole() {
         </section>
 
         {s && (
-          <details className="mb-6 rounded-xl border border-white/10 bg-black/20 p-3">
+          <details
+            className="mb-6 rounded-xl border border-white/10 bg-black/20 p-3"
+            onToggle={(e) => {
+              if ((e.target as HTMLDetailsElement).open) setLayoutEditorMounted(true);
+            }}
+          >
             <summary className="cursor-pointer font-display text-lg text-[var(--accent)] select-none">
               TV layout & editor
             </summary>
@@ -408,7 +441,18 @@ export default function MasterConsole() {
               Layout debug on the public display: Ctrl+Shift+D.
             </p>
             <div className="mt-3">
-              <TableLayoutEditor state={s} onApply={(layout) => emit('session:setTableLayout', { tableLayout: layout })} />
+              {layoutEditorMounted ? (
+                <Suspense
+                  fallback={<p className="text-sm text-[var(--muted)]">Loading layout editor…</p>}
+                >
+                  <TableLayoutEditor
+                    state={s}
+                    onApply={(layout) => emit('session:setTableLayout', { tableLayout: layout })}
+                  />
+                </Suspense>
+              ) : (
+                <p className="text-xs text-[var(--muted)]">Expand this section once to load the visual editor.</p>
+              )}
             </div>
           </details>
         )}
@@ -418,7 +462,7 @@ export default function MasterConsole() {
             <h2 className="font-display text-lg text-[var(--accent)]">Party</h2>
             {party?.characters.length ? (
               <MasterPartyStrip
-                characters={party.characters}
+                characters={mapPartyForPartyWidget(party.characters, s?.initiative)}
                 hiddenPartyMembers={s?.hiddenPartyMembers}
                 emit={emit}
               />

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import type { PublicSessionState } from '@ddb/shared-types';
+import type { PublicSessionState } from '@ddb/shared-types/session';
 import { apiGet, apiPost } from '../api';
 import { useSessionSocket } from '../hooks/useSessionSocket';
 import { useSessionRuntimeStore } from '../stores/sessionRuntimeStore';
@@ -146,6 +146,7 @@ export default function TableScreen() {
             <TableLayoutView
               className="flex min-h-0 min-w-0 flex-1 flex-col"
               state={live}
+              sessionUiMode="display"
               large
               fillViewport
               debugLayout={debugLayout}

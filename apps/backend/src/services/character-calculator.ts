@@ -110,6 +110,35 @@ export function calculateAc(character: DdbCharacter): number {
   return Math.max(characterAc, armorAc) + shieldAc + bonusAc;
 }
 
+function armorClassFromDdbField(v: unknown): number | null {
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    const n = Math.round(v);
+    if (n >= 0 && n <= 50) return n;
+    return null;
+  }
+  if (typeof v === 'string') {
+    const t = v.trim();
+    if (/^\d+$/.test(t)) {
+      const n = Number(t);
+      if (n >= 0 && n <= 50) return n;
+    }
+  }
+  return null;
+}
+
+/**
+ * Prefer DDB’s computed total AC when the payload includes it. Partial merges / stripped
+ * inventory often break `calculateAc`; the sheet’s `armorClass` stays authoritative.
+ */
+export function resolveDisplayArmorClass(character: DdbCharacter): number {
+  const r = character as Record<string, unknown>;
+  for (const key of ['armorClass', 'armor_class', 'calculatedArmorClass']) {
+    const n = armorClassFromDdbField(r[key]);
+    if (n != null) return n;
+  }
+  return calculateAc(character);
+}
+
 export function getMaxHp(character: DdbCharacter): number {
   if (character.overrideHitPoints != null && character.overrideHitPoints !== '') {
     return Number(character.overrideHitPoints);

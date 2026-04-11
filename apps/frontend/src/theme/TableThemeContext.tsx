@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import type { TableTheme } from '@ddb/shared-types';
+import type { TableTheme } from '@ddb/shared-types/themes';
 
 const TableThemeContext = createContext<TableTheme>('minimal');
 

@@ -1,9 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "DDB DM Screen — campaign poller",
-  "version": "2.0.1",
+  "name": "DDB DM Screen \u2014 campaign poller",
+  "version": "2.0.36",
   "description": "Polls D&D Beyond campaign characters and uploads to DM Screen using your API key.",
-  "permissions": ["cookies", "storage", "alarms"],
+  "permissions": [
+    "cookies",
+    "storage",
+    "alarms"
+  ],
   "host_permissions": [
     "https://www.dndbeyond.com/*",
     "https://dndbeyond.com/*",
@@ -13,6 +17,19 @@
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.dndbeyond.com/characters/*",
+        "https://dndbeyond.com/characters/*",
+        "https://www.dndbeyond.com/character/*",
+        "https://dndbeyond.com/character/*"
+      ],
+      "js": ["content-ddb-conditions.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
   "icons": {
     "16": "icons/icon128.png",
     "32": "icons/icon128.png",

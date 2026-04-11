@@ -10,6 +10,8 @@ From the repository root:
 docker compose up --build
 ```
 
+**Small VPS:** Compose passes **`BUILD_NICE=15`** and **`ROLLUP_MAX_PARALLEL_FILE_OPS=3`** so image builds yield CPU and throttle Vite/Rollup I/O. For a fast CI builder, override e.g. `docker compose build --build-arg BUILD_NICE=0 --build-arg ROLLUP_MAX_PARALLEL_FILE_OPS=20` (or omit `ROLLUP_MAX_PARALLEL_FILE_OPS` and set `BUILD_NICE=0` only).
+
 - **SQLite:** host directory `./data` is mounted at `/app/data` in the backend; DB file `ddb-screen.db` (and `-wal`/`-shm`) persist across recreates.
 - **Backend:** `http://localhost:3001` (API + Socket.IO)
 - **Frontend (nginx):** `http://localhost:8080` — proxies `/api` and `/socket.io` to the `backend` service

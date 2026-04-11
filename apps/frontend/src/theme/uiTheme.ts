@@ -1,4 +1,4 @@
-import type { TableTheme } from '@ddb/shared-types';
+import type { TableTheme } from '@ddb/shared-types/themes';
 
 /** Decorative frame geometry used by `ThemedPanelFrame` (independent of session theme id). */
 export type PanelBorderVariant = 'modern' | 'fantasy' | 'sciFi' | 'organic';

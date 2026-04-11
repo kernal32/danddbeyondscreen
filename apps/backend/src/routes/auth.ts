@@ -27,9 +27,12 @@ export function registerAuthRoutes(
     ddbUploads: UserDdbUploadService;
     sessions: SessionService;
     gameSessionPersistence: GameSessionPersistence;
+    /** Normalized emails allowed to use `/api/admin/*` (empty = no admin UI flag). */
+    adminEmailAllowlist?: Set<string>;
   },
 ) {
-  const { authSecret, userAuth, prefs, apiKeys, ddbUploads, sessions, gameSessionPersistence } = deps;
+  const { authSecret, userAuth, prefs, apiKeys, ddbUploads, sessions, gameSessionPersistence, adminEmailAllowlist } =
+    deps;
 
   app.post<{ Body: { email?: string; password?: string } }>('/api/auth/register', async (req, reply) => {
     const email = req.body?.email;
@@ -69,14 +72,18 @@ export function registerAuthRoutes(
     const user = userAuth.getById(userId);
     if (!user) return reply.code(401).send({ error: 'Unauthorized' });
     const p = prefs.getSnapshot(userId);
+    const allow = adminEmailAllowlist;
+    const isAdmin = allow && allow.size > 0 && allow.has(user.email.toLowerCase());
     return {
       email: user.email,
+      isAdmin: Boolean(isAdmin),
       preferences: {
         defaultSeedCharacterId: p.defaultSeedCharacterId,
         ddbCookie: p.ddbCookie,
         tableLayout: p.tableLayout,
         partyCardDisplay: p.partyCardDisplay,
         themePreferences: p.themePreferences,
+        combinedLayoutPresets: p.combinedLayoutPresets,
       },
     };
   });
@@ -88,6 +95,7 @@ export function registerAuthRoutes(
       tableLayout: TableLayout | null;
       partyCardDisplay: PartyCardDisplayOptions | null;
       themePreferences: UserThemePreferences | null;
+      combinedLayoutPresets: { id: string; name: string; layout: Record<string, unknown> }[] | null;
     }>;
   }>('/api/me/preferences', async (req, reply) => {
     const tok = parseBearer(req.headers.authorization);
@@ -123,6 +131,8 @@ export function registerAuthRoutes(
             : body.themePreferences === null
               ? null
               : parseUserThemePreferences(body.themePreferences as unknown),
+        combinedLayoutPresets:
+          body.combinedLayoutPresets === undefined ? undefined : body.combinedLayoutPresets,
       });
       return { ok: true };
     } catch (e) {
@@ -138,6 +148,32 @@ export function registerAuthRoutes(
     if (!userId) return reply.code(401).send({ error: 'Unauthorized' });
     const meta = ddbUploads.getMeta(userId);
     return { upload: meta };
+  });
+
+  app.get('/api/me/combined-layout-presets', async (req, reply) => {
+    const tok = parseBearer(req.headers.authorization);
+    if (!tok) return reply.code(401).send({ error: 'Unauthorized' });
+    const userId = await verifyUserJwt(tok, authSecret);
+    if (!userId) return reply.code(401).send({ error: 'Unauthorized' });
+    const p = prefs.getSnapshot(userId);
+    return { presets: p.combinedLayoutPresets };
+  });
+
+  app.put<{
+    Body: { presets?: { id?: string; name?: string; layout?: Record<string, unknown> }[] };
+  }>('/api/me/combined-layout-presets', async (req, reply) => {
+    const tok = parseBearer(req.headers.authorization);
+    if (!tok) return reply.code(401).send({ error: 'Unauthorized' });
+    const userId = await verifyUserJwt(tok, authSecret);
+    if (!userId) return reply.code(401).send({ error: 'Unauthorized' });
+    const presets = Array.isArray(req.body?.presets) ? req.body.presets : [];
+    try {
+      prefs.save(userId, { combinedLayoutPresets: presets as { id: string; name: string; layout: Record<string, unknown> }[] });
+      return { ok: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Save failed';
+      return reply.code(400).send({ error: msg });
+    }
   });
 
   app.post<{ Body: { label?: string } }>('/api/me/api-keys', async (req, reply) => {

@@ -3287,310 +3287,168 @@
     var isFail  = (kept === 1);
     var mode    = isCrit ? 'crit' : isFail ? 'fail' : 'normal';
 
-    var cardRect = _diceGetCardRect(eid);
-    if (!cardRect) { if (onDone) onDone(); return; }
-    var hostRect = layer.getBoundingClientRect();
+    /* ── icosahedron geometry constants (200px container) ──────────── */
+    var FW  = 100, FH = 86;                      /* face width / height */
+    var TZ  = FW * 0.335;                         /* 33.5 — top/bottom cap translateZ */
+    var TY  = FH * -0.15;                         /* -12.9 — top cap translateY */
+    var TZ2 = FW * 0.75;                          /* 75 — ring translateZ */
+    var TY2 = FH * 0.78 + TY;                     /* 54.18 — ring translateY */
+    var TY3 = FH * 0.78 + TY2;                    /* 121.26 — bottom cap translateY */
+    var SA  = 72, ANG = 53, RANG = -11;           /* sideAngle, angle, ringAngle */
 
-    var NS   = 'http://www.w3.org/2000/svg';
-    var uid0 = 'dib-d' + Date.now();
-    var DEG  = Math.PI / 180;
-
-    function rnd(lo, hi) { return lo + Math.random() * (hi - lo); }
-
-    /* --- generate tumble keyframe path (randomised per roll) --- */
-    function buildTumblePath() {
-      var jz = function() { return rnd(-25, 25); };
-      return [
-        { t:   0, rx:   0,              ry:   0,              rz:  0 },
-        { t:  80, rx: -45 + rnd(-12,12), ry:  70 + rnd(-15,15), rz: 15  + jz() },
-        { t: 180, rx:  30 + rnd(-10,10), ry: 200 + rnd(-20,20), rz: -20 + jz() },
-        { t: 300, rx: -60 + rnd(-12,12), ry: 310 + rnd(-20,20), rz: 35  + jz() },
-        { t: 440, rx:  20 + rnd(-8, 8),  ry: 400 + rnd(-15,15), rz: -10 + jz() },
-        { t: 580, rx:  -8 + rnd(-5, 5),  ry: 430 + rnd(-8, 8),  rz:  5  + rnd(-6, 6) },
-        { t: 660, rx:   0,              ry:   0,              rz:  0 },
-      ];
+    /* transform for each face div (1-indexed, 1-20) */
+    function faceTransform(i) {
+      if (i >= 1 && i <= 5) {
+        return 'rotateY(' + (-SA * (i - 1)) + 'deg) translateZ(' + TZ + 'px) translateY(' + TY + 'px) rotateX(' + ANG + 'deg)';
+      } else if (i >= 6 && i <= 10) {
+        return 'rotateY(' + (-SA * (i - 11)) + 'deg) translateZ(' + TZ2 + 'px) translateY(' + TY2 + 'px) rotateZ(180deg) rotateX(' + RANG + 'deg)';
+      } else if (i >= 11 && i <= 15) {
+        return 'rotateY(' + (SA * (i - 8) + SA / 2) + 'deg) translateZ(' + TZ2 + 'px) translateY(' + TY2 + 'px) rotateX(' + RANG + 'deg)';
+      } else {
+        return 'rotateY(' + (SA * (i - 18) + SA / 2) + 'deg) translateZ(' + TZ + 'px) translateY(' + TY3 + 'px) rotateZ(180deg) rotateX(' + ANG + 'deg)';
+      }
     }
 
-    /* --- build one d20 die --- */
-    function makeDie(value, isDrop, dIdx) {
-      var uid   = uid0 + '-' + dIdx;
-      var dMode = isDrop ? 'normal' : mode;
-      var isG   = isCrit && !isDrop;
-      var isR   = isFail && !isDrop;
-
-      var c1a = isG ? '#6b5020' : isR ? '#5c1a1a' : '#3d3535';
-      var c1b = isG ? '#2e1f08' : isR ? '#220808' : '#1c1616';
-      var c2a = isG ? '#3d2d10' : isR ? '#380e0e' : '#282020';
-      var c2b = isG ? '#180f03' : isR ? '#120404' : '#0d0a0a';
-      var c3a = isG ? '#2c1f08' : isR ? '#280909' : '#1c1717';
-      var c3b = isG ? '#0e0804' : isR ? '#0a0303' : '#070505';
-      var edgeC   = isG ? 'rgba(212,168,67,0.6)' : isR ? 'rgba(239,68,68,0.5)' : 'rgba(138,138,148,0.45)';
-      var numFill = isG ? '#ffe87a' : isR ? '#ef4444' : 'var(--dib-frame-gold,#d4a843)';
-
-      var anim = document.createElement('div');
-      anim.className = 'dib-dice-anim';
-      anim.setAttribute('data-mode', dMode);
-
-      var scene = document.createElement('div');
-      scene.className = 'dib-dice-scene';
-
-      var body = document.createElement('div');
-      body.className = 'dib-dice-body';
-
-      /* SVG */
-      var svg = document.createElementNS(NS, 'svg');
-      svg.setAttribute('viewBox', '0 0 100 110');
-      svg.setAttribute('aria-hidden', 'true');
-      svg.setAttribute('class', 'dib-dice-svg');
-      svg.setAttribute('overflow', 'visible');
-
-      var defs = document.createElementNS(NS, 'defs');
-      function mkGrad(id, ca, cb) {
-        var g = document.createElementNS(NS, 'linearGradient');
-        g.setAttribute('id', id);
-        g.setAttribute('x1', '0%'); g.setAttribute('y1', '0%');
-        g.setAttribute('x2', '100%'); g.setAttribute('y2', '100%');
-        [[0, ca], [1, cb]].forEach(function(s) {
-          var st = document.createElementNS(NS, 'stop');
-          st.setAttribute('offset', s[0]); st.setAttribute('stop-color', s[1]);
-          g.appendChild(st);
-        });
-        return g;
+    /* container rotation that orients face N toward the viewer */
+    function landingTransform(face) {
+      if (face >= 1 && face <= 5) {
+        return 'rotateX(' + (-ANG) + 'deg) rotateY(' + (SA * (face - 1)) + 'deg)';
+      } else if (face >= 6 && face <= 10) {
+        return 'rotateX(' + (-RANG) + 'deg) rotateZ(180deg) rotateY(' + (SA * (face - 6)) + 'deg)';
+      } else if (face >= 11 && face <= 15) {
+        return 'rotateX(' + (-RANG) + 'deg) rotateY(' + (-SA * (face - 8) - SA / 2) + 'deg)';
+      } else {
+        return 'rotateX(' + (-ANG + 180) + 'deg) rotateY(' + (-SA * (face - 15)) + 'deg)';
       }
-      defs.appendChild(mkGrad(uid+'-f1', c1a, c1b));
-      defs.appendChild(mkGrad(uid+'-f2', c2a, c2b));
-      defs.appendChild(mkGrad(uid+'-f3', c3a, c3b));
-      svg.appendChild(defs);
+    }
 
-      var facePolys = [];
-      [['50,3 3,53 97,53', uid+'-f1'], ['3,53 26,100 50,53', uid+'-f2'], ['50,53 74,100 97,53', uid+'-f3']].forEach(function(f) {
-        var p = document.createElementNS(NS, 'polygon');
-        p.setAttribute('points', f[0]); p.setAttribute('fill', 'url(#'+f[1]+')');
-        svg.appendChild(p); facePolys.push(p);
-      });
+    /* ── overlay (dark scrim, flex-centres the stage(s)) ──────────── */
+    var overlay = document.createElement('div');
+    overlay.className = 'dib-dice-overlay';
+    layer.appendChild(overlay);
 
-      ['50,3 3,53','50,3 97,53','3,53 97,53','3,53 26,100','26,100 50,53','50,53 74,100','74,100 97,53'].forEach(function(pts) {
-        var ln = document.createElementNS(NS, 'polyline');
-        ln.setAttribute('points', pts); ln.setAttribute('fill', 'none');
-        ln.setAttribute('stroke', edgeC); ln.setAttribute('stroke-width', '0.9');
-        svg.appendChild(ln);
-      });
+    /* ── build one d20 die ──────────────────────────────────────────── */
+    function makeDie(value, dMode, isDrop) {
+      var isG = (dMode === 'crit');
+      var isR = (dMode === 'fail');
 
-      var sil = document.createElementNS(NS, 'polygon');
-      sil.setAttribute('points', '50,3 3,53 26,100 74,100 97,53');
-      sil.setAttribute('fill', 'none'); sil.setAttribute('stroke', edgeC);
-      sil.setAttribute('stroke-width', '1.5'); sil.setAttribute('stroke-linejoin', 'round');
-      svg.appendChild(sil);
+      /* face fill colours — brighter "lit" shade for top ring, darker for bottom */
+      var faceTop = isG ? 'rgba(212,168,30,0.85)' : isR ? 'rgba(200,35,35,0.85)' : 'rgba(20,130,38,0.85)';
+      var faceMid = isG ? 'rgba(170,128,20,0.82)' : isR ? 'rgba(160,28,28,0.82)' : 'rgba(16,100,28,0.82)';
+      var faceBot = isG ? 'rgba(130,95,12,0.78)'  : isR ? 'rgba(120,20,20,0.78)'  : 'rgba(10,75,20,0.78)';
 
-      var numEl = document.createElementNS(NS, 'text');
-      numEl.setAttribute('x', '50'); numEl.setAttribute('y', '36');
-      numEl.setAttribute('text-anchor', 'middle'); numEl.setAttribute('dominant-baseline', 'central');
-      numEl.setAttribute('class', 'dib-dice-num-svg'); numEl.setAttribute('fill', numFill);
-      numEl.textContent = String(Math.floor(Math.random() * 20) + 1);
-      svg.appendChild(numEl);
+      var stage = document.createElement('div');
+      stage.className = 'dib-dice-stage' + (isDrop ? ' dib-dice-stage--drop' : '');
 
-      body.appendChild(svg);
+      var d20 = document.createElement('div');
+      d20.className = 'dib-dice-d20';
+      d20.style.transform = 'rotateX(' + (-ANG) + 'deg)';
 
-      /* highlight overlay */
-      var highlight = document.createElement('div');
-      highlight.className = 'dib-dice-highlight';
-      body.appendChild(highlight);
+      for (var fi = 1; fi <= 20; fi++) {
+        var face = document.createElement('div');
+        face.className = 'dib-dice-face';
+        face.setAttribute('data-n', String(fi));
+        /* pick shade by ring: top cap=faceTop, upper ring=faceMid, lower ring=faceMid, bottom cap=faceBot */
+        var col = (fi <= 5) ? faceTop : (fi >= 16) ? faceBot : faceMid;
+        face.style.cssText =
+          'position:absolute;left:50%;top:0;' +
+          'margin-left:' + (-FW / 2) + 'px;' +
+          'border-left:' + (FW / 2) + 'px solid transparent;' +
+          'border-right:' + (FW / 2) + 'px solid transparent;' +
+          'border-bottom:' + FH + 'px solid ' + col + ';' +
+          'width:0;height:0;' +
+          'backface-visibility:hidden;-webkit-backface-visibility:hidden;' +
+          'transform-style:preserve-3d;' +
+          'transform:' + faceTransform(fi) + ';';
+        d20.appendChild(face);
+      }
 
-      scene.appendChild(body);
-
-      /* ground shadow */
+      /* ground shadow element */
       var shadow = document.createElement('div');
       shadow.className = 'dib-dice-shadow';
 
-      /* glow burst container */
-      var glow = document.createElement('div');
-      glow.className = 'dib-dice-glow';
+      /* result number displayed after landing */
+      var result = document.createElement('div');
+      result.className = 'dib-dice-result' + (isDrop ? ' dib-dice-result--drop' : '');
+      result.setAttribute('data-mode', dMode);
 
-      anim.appendChild(scene);
-      anim.appendChild(shadow);
-      anim.appendChild(glow);
+      var resultNum = document.createElement('span');
+      resultNum.className = 'dib-dice-result-num';
+      resultNum.textContent = '';
+      result.appendChild(resultNum);
 
-      return {
-        el: anim, body: body, glow: glow, numEl: numEl,
-        svg: svg, highlight: highlight, shadow: shadow,
-        faceL: facePolys[1], faceR: facePolys[2],
-        value: value, isDrop: isDrop,
-        tumble: buildTumblePath(),
-      };
+      stage.appendChild(d20);
+      stage.appendChild(shadow);
+      stage.appendChild(result);
+      overlay.appendChild(stage);
+
+      return { stage: stage, d20: d20, result: result, resultNum: resultNum, value: value, isDrop: isDrop, dMode: dMode };
     }
 
     var dice = isMulti
-      ? [makeDie(kept, false, 0), makeDie(dropped, true, 1)]
-      : [makeDie(kept, false, 0)];
+      ? [makeDie(kept, mode, false), makeDie(dropped, 'normal', true)]
+      : [makeDie(kept, mode, false)];
 
-    var wrapper = document.createElement('div');
-    wrapper.className = 'dib-dice-wrapper' + (isMulti ? ' dib-dice-wrapper--dual' : '');
-    var posTop  = cardRect.top  - hostRect.top  + cardRect.height * 0.38;
-    var posLeft = cardRect.left - hostRect.left + cardRect.width  * 0.50;
-    wrapper.style.cssText = 'position:absolute;top:' + posTop + 'px;left:' + posLeft + 'px;' +
-                            'transform:translateY(-50%);display:flex;gap:8px;align-items:flex-end;';
-    dice.forEach(function(d) { wrapper.appendChild(d.el); });
-    layer.appendChild(wrapper);
+    /* ── timing constants ────────────────────────────────────────────── */
+    var ROLL_START = 120;    /* ms before roll animation begins */
+    var ROLL_DUR   = 1600;   /* duration of CSS tumble animation */
+    var LAND_AT    = ROLL_START + ROLL_DUR;   /* 1720ms */
+    var REVEAL_AT  = LAND_AT + 480;           /* 2200ms */
+    var DONE_AT    = REVEAL_AT + 1150;        /* 3350ms */
 
-    var doneCount = 0;
+    /* fade in the scrim */
+    var tShow = setTimeout(function () {
+      overlay.classList.add('dib-dice-overlay--visible');
+    }, 20);
+    _diceAddTimer(tShow);
 
-    /* --- ease-out interpolation helper --- */
-    function easeOut(t) { return 1 - Math.pow(1 - t, 2.4); }
+    dice.forEach(function (d, dIdx) {
+      var BD = dIdx * 110; /* stagger second die slightly */
 
-    function lerpTumble(tumble, elapsed) {
-      var last = tumble.length - 1;
-      if (elapsed >= tumble[last].t) return tumble[last];
-      for (var i = 0; i < last; i++) {
-        if (elapsed >= tumble[i].t && elapsed < tumble[i + 1].t) {
-          var seg = tumble[i + 1].t - tumble[i].t;
-          var p = easeOut((elapsed - tumble[i].t) / seg);
-          return {
-            rx: tumble[i].rx + (tumble[i + 1].rx - tumble[i].rx) * p,
-            ry: tumble[i].ry + (tumble[i + 1].ry - tumble[i].ry) * p,
-            rz: tumble[i].rz + (tumble[i + 1].rz - tumble[i].rz) * p,
-            seg: i,
-          };
-        }
-      }
-      return tumble[0];
-    }
+      /* start roll animation */
+      var tRoll = setTimeout(function () {
+        d.d20.classList.add('dib-dice-d20--rolling');
+      }, BD + ROLL_START);
+      _diceAddTimer(tRoll);
 
-    dice.forEach(function(d, dIdx) {
-      var BD   = dIdx * 90;
-      var BLEN = 750;
-      var TUMBLE_END = 660;
-      var LAND = TUMBLE_END + 310;
-      var EXIT = LAND + 460;
-
-      var snapped = false, rStart = null, lastSeg = -1, flashUntil = 0;
-
-      function rafTick(now) {
-        if (snapped) return;
-        if (!rStart) rStart = now;
-        var el = now - rStart;
-        if (el >= TUMBLE_END) { doSnap(); return; }
-
-        var st = lerpTumble(d.tumble, el);
-        var rx = st.rx, ry = st.ry, rz = st.rz;
-
-        /* face flash on keyframe transition */
-        if (st.seg !== undefined && st.seg !== lastSeg) {
-          if (lastSeg >= 0) flashUntil = el + 60;
-          lastSeg = st.seg;
-        }
-        var bright = (el < flashUntil) ? 1.35 : 1.0;
-
-        /* squash on bounce impacts (approx bounce keyframe %) */
-        var bounceT = el / BLEN;
-        var sqX = 1, sqY = 1;
-        if (bounceT > 0.20 && bounceT < 0.26) { sqX = 1.12; sqY = 0.82; }
-        else if (bounceT > 0.56 && bounceT < 0.62) { sqX = 1.06; sqY = 0.92; }
-
-        /* body transform */
-        var xf = 'rotateX('+rx.toFixed(1)+'deg) rotateY('+ry.toFixed(1)+'deg) rotateZ('+rz.toFixed(1)+'deg)';
-        if (sqX !== 1) xf += ' scaleX('+sqX.toFixed(3)+') scaleY('+sqY.toFixed(3)+')';
-        d.body.style.transform = xf;
-
-        /* dynamic highlight */
-        var sinRy = Math.sin(ry * DEG), sinRx = Math.sin(rx * DEG);
-        var hlX = 50 + sinRy * 32;
-        var hlY = 42 - sinRx * 22;
-        d.highlight.style.background =
-          'radial-gradient(ellipse 55% 45% at '+hlX.toFixed(1)+'% '+hlY.toFixed(1)+'%,' +
-          'rgba(255,255,255,0.22) 0%,rgba(255,255,255,0.05) 40%,transparent 70%)';
-
-        /* face opacity shift (left brighter when light from left, right when from right) */
-        var fL = 0.85 + Math.max(0, -sinRy) * 0.5;
-        var fR = 0.85 + Math.max(0,  sinRy) * 0.5;
-        d.faceL.setAttribute('opacity', fL.toFixed(2));
-        d.faceR.setAttribute('opacity', fR.toFixed(2));
-
-        /* SVG filter: depth shadow + face flash brightness */
-        var sd = 1 + sinRx * 0.12;
-        d.svg.style.filter = 'drop-shadow(0 '+(3+sd*2).toFixed(1)+'px '+(8+sd*4).toFixed(1)+'px rgba(0,0,0,'+(0.7+sd*0.15).toFixed(2)+'))' +
-          (bright > 1 ? ' brightness('+bright.toFixed(2)+')' : '');
-
-        /* ground shadow scale */
-        var shSc = 0.9 + Math.abs(sinRy) * 0.15;
-        d.shadow.style.transform = 'translateX(-50%) scaleX('+shSc.toFixed(2)+')';
-        d.shadow.style.opacity = (0.5 + (bounceT < 0.22 ? (bounceT / 0.22) * 0.3 : bounceT < 0.58 ? 0.3 : 0.5)).toFixed(2);
-
-        var rid = requestAnimationFrame(rafTick);
-        _diceAddTimer(rid);
-      }
-
-      function doSnap() {
-        snapped = true;
-        d.body.style.transition = 'transform 0.1s cubic-bezier(.22,.68,0,1.2)';
-        d.body.style.transform = 'rotateX(6deg) rotateY(-4deg) rotateZ(3deg)';
-        d.highlight.style.background =
-          'radial-gradient(ellipse 55% 45% at 50% 42%,rgba(255,255,255,0.22) 0%,rgba(255,255,255,0.05) 40%,transparent 70%)';
-        d.faceL.setAttribute('opacity', '1'); d.faceR.setAttribute('opacity', '1');
-        d.svg.style.filter = 'drop-shadow(0 3px 10px rgba(0,0,0,.85))';
-        d.shadow.style.transform = 'translateX(-50%) scaleX(1)';
-        d.shadow.style.opacity = '0.6';
-
-        var tw1 = setTimeout(function() {
-          d.body.style.transform = 'rotateX(-3deg) rotateY(2deg) rotateZ(-1.5deg)';
-        }, 100);
-        _diceAddTimer(tw1);
-        var tw2 = setTimeout(function() {
-          d.body.style.transform = 'rotateX(0deg) rotateY(0deg) rotateZ(0deg)';
-        }, 200);
-        _diceAddTimer(tw2);
-      }
-
-      /* bounce + fade-in on outer container */
-      d.el.style.animation = 'dib-dice-bounce '+BLEN+'ms cubic-bezier(.33,0,.66,1) '+BD+'ms both,' +
-                             'dib-dice-fadein 120ms linear '+BD+'ms both';
-
-      var tRaf = setTimeout(function() { var rid = requestAnimationFrame(rafTick); _diceAddTimer(rid); }, BD);
-      _diceAddTimer(tRaf);
-
-      /* number cycling — slows toward landing */
-      var cycRef = [null];
-      function startCyc(ms) {
-        if (cycRef[0]) clearInterval(cycRef[0]);
-        cycRef[0] = setInterval(function() { d.numEl.textContent = String(Math.floor(Math.random() * 20) + 1); }, ms);
-        _diceAddTimer(cycRef[0]);
-      }
-      startCyc(35);
-      var tC1 = setTimeout(function() { startCyc(75);  }, BD + 310);
-      var tC2 = setTimeout(function() { startCyc(150); }, BD + 490);
-      var tC3 = setTimeout(function() { startCyc(270); }, BD + 650);
-      var tCS = setTimeout(function() { clearInterval(cycRef[0]); }, BD + 820);
-      _diceAddTimer(tC1); _diceAddTimer(tC2); _diceAddTimer(tC3); _diceAddTimer(tCS);
-
-      /* land: wobble is done, reveal number + scale pop + glow */
-      var tLand = setTimeout(function() {
-        d.numEl.textContent = String(d.value);
-        if (d.isDrop) d.el.classList.add('dib-dice-anim--dropped');
-        d.body.style.transition = 'transform 0.28s cubic-bezier(.22,.68,0,1.2)';
-        d.body.style.transform  = 'scale(1.15)';
-        var tPop = setTimeout(function() { d.body.style.transform = 'scale(1)'; }, 160);
-        _diceAddTimer(tPop);
-        d.glow.classList.add('dib-dice-glow--burst');
-        d.el.classList.add('dib-dice-anim--land');
-        d.highlight.style.transition = 'opacity 0.3s';
-        d.highlight.style.opacity = '0';
-      }, BD + LAND);
+      /* land: capture animated position, stop animation, transition to face */
+      var tLand = setTimeout(function () {
+        /* capture the live animated matrix so we can start transition from here */
+        var host = document.getElementById('ddb-campaign-init-bar-host');
+        var sr   = host && host.shadowRoot;
+        var curXf = sr ? window.getComputedStyle(d.d20).transform : '';
+        /* stop animation */
+        d.d20.classList.remove('dib-dice-d20--rolling');
+        /* lock element at its current visual position (no jump) */
+        if (curXf && curXf !== 'none') d.d20.style.transform = curXf;
+        /* force reflow so transition fires from captured position */
+        void d.d20.offsetWidth;
+        /* smooth settle to the correct face orientation */
+        d.d20.style.transition = 'transform 0.48s cubic-bezier(.22,.68,0,1.0)';
+        d.d20.style.transform  = landingTransform(d.value);
+      }, BD + LAND_AT);
       _diceAddTimer(tLand);
 
-      /* exit */
-      var tExit = setTimeout(function() {
-        d.el.style.animation = '';
-        d.el.classList.add('dib-dice-anim--exit');
-        var tDone = setTimeout(function() {
-          doneCount++;
-          if (doneCount >= dice.length) {
-            if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
-            if (onDone) onDone();
-          }
-        }, 280);
-        _diceAddTimer(tDone);
-      }, BD + EXIT);
-      _diceAddTimer(tExit);
+      /* reveal: show large result number */
+      var tReveal = setTimeout(function () {
+        d.resultNum.textContent = String(d.value);
+        d.result.classList.add('dib-dice-result--visible');
+      }, BD + REVEAL_AT);
+      _diceAddTimer(tReveal);
     });
+
+    /* exit after the last die finishes */
+    var lastEnd = (dice.length - 1) * 110 + DONE_AT;
+    var tExit = setTimeout(function () {
+      overlay.classList.remove('dib-dice-overlay--visible');
+      overlay.classList.add('dib-dice-overlay--exit');
+      var tRemove = setTimeout(function () {
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        if (onDone) onDone();
+      }, 450);
+      _diceAddTimer(tRemove);
+    }, lastEnd);
+    _diceAddTimer(tExit);
   }
 
   function _diceProcessQueue() {
@@ -5718,6 +5576,8 @@
       }
 
       /* ===== DICE ANIMATION SYSTEM ===== */
+
+      /* ── layer (fixed full-page host) ─────────────────────────────── */
       #dib-dice-layer {
         position: fixed;
         inset: 0;
@@ -5725,164 +5585,153 @@
         z-index: 9000;
         overflow: hidden;
       }
-      .dib-dice-wrapper {
-        display: flex;
-        flex-direction: row;
-        gap: 8px;
-        align-items: flex-end;
-        pointer-events: none;
-      }
-      .dib-dice-anim {
-        position: relative;
-        width: 84px;
-        height: 94px;
-        pointer-events: none;
-      }
-      .dib-dice-scene {
-        width: 100%;
-        height: 100%;
-        perspective: 360px;
-        perspective-origin: 50% 35%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .dib-dice-body {
-        position: relative;
-        width: 100%;
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        will-change: transform;
-        transform-style: preserve-3d;
-      }
-      .dib-dice-svg {
-        width: 84px;
-        height: 94px;
-        display: block;
-        overflow: visible;
-        filter: drop-shadow(0 3px 10px rgba(0,0,0,.85));
-        transition: filter 0.06s linear;
-      }
-      .dib-dice-num-svg {
-        font-family: var(--dib-heading-font, 'Cinzel', Georgia, serif);
-        font-size: 22px;
-        font-weight: 900;
-        font-variant-numeric: tabular-nums;
-        letter-spacing: -0.02em;
-      }
-      .dib-dice-highlight {
+
+      /* ── overlay (dark scrim, centres the dice stage(s)) ─────────── */
+      .dib-dice-overlay {
         position: absolute;
         inset: 0;
-        border-radius: 3px;
-        background: radial-gradient(ellipse 55% 45% at 50% 42%,
-          rgba(255,255,255,0.18) 0%,
-          rgba(255,255,255,0.04) 40%,
-          transparent 70%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 48px;
+        background: rgba(0,0,0,0);
+        transition: background 0.28s ease;
         pointer-events: none;
-        mix-blend-mode: soft-light;
       }
-      .dib-dice-shadow {
-        position: absolute;
-        bottom: -6px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 58%;
-        height: 10px;
-        background: radial-gradient(ellipse at center, rgba(0,0,0,0.5) 0%, transparent 70%);
-        filter: blur(3px);
-        pointer-events: none;
-        opacity: 0.5;
+      .dib-dice-overlay--visible {
+        background: rgba(0,0,0,0.62);
       }
-      .dib-dice-glow {
-        position: absolute;
-        inset: -8px;
-        border-radius: 8px;
-        pointer-events: none;
-        opacity: 0;
-      }
-      .dib-dice-glow--burst {
-        animation: dib-dice-glow-burst 0.55s cubic-bezier(.22,.68,0,1.2) forwards;
-      }
-      .dib-dice-anim[data-mode="crit"] .dib-dice-glow--burst {
-        animation: dib-dice-glow-burst-crit 0.55s cubic-bezier(.22,.68,0,1.2) forwards;
-      }
-      .dib-dice-anim[data-mode="fail"] .dib-dice-glow--burst {
-        animation: dib-dice-glow-burst-fail 0.55s cubic-bezier(.22,.68,0,1.2) forwards;
-      }
-      .dib-dice-anim--land .dib-dice-svg {
-        animation: dib-dice-svg-land 0.6s ease-out forwards;
-      }
-      .dib-dice-anim[data-mode="crit"].dib-dice-anim--land .dib-dice-svg {
-        animation: dib-dice-svg-land-crit 0.6s ease-out forwards;
-      }
-      .dib-dice-anim[data-mode="fail"].dib-dice-anim--land .dib-dice-svg {
-        animation: dib-dice-svg-land-fail 0.6s ease-out forwards;
-      }
-      .dib-dice-anim--exit {
-        animation: dib-dice-exit 0.26s ease-in forwards;
-      }
-      .dib-dice-anim--dropped {
-        opacity: 0.4;
-      }
-      .dib-dice-anim--dropped .dib-dice-num-svg {
-        text-decoration: line-through;
+      .dib-dice-overlay--exit {
+        background: rgba(0,0,0,0) !important;
+        transition: background 0.45s ease !important;
       }
 
-      @keyframes dib-dice-bounce {
-        0%   { transform: translateY(-42px) scale(0.3);  }
-        14%  { transform: translateY(-18px) scale(0.82); }
-        22%  { transform: translateY(0px)   scale(1);    }
-        24%  { transform: translateY(0px)   scale(1);    }
-        42%  { transform: translateY(-18px) scale(1);    }
-        58%  { transform: translateY(0px)   scale(1);    }
-        60%  { transform: translateY(0px)   scale(1);    }
-        73%  { transform: translateY(-5px)  scale(1);    }
-        84%  { transform: translateY(0px)   scale(1);    }
-        100% { transform: translateY(0px)   scale(1);    }
+      /* ── stage: perspective container + result label ──────────────── */
+      .dib-dice-stage {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        perspective: 900px;
+        perspective-origin: 50% 35%;
       }
-      @keyframes dib-dice-fadein {
-        0%   { opacity: 0; }
-        100% { opacity: 1; }
+      .dib-dice-stage--drop {
+        opacity: 0.38;
       }
-      @keyframes dib-dice-exit {
-        0%   { opacity: 1; transform: translateY(0px)   scale(1);   }
-        100% { opacity: 0; transform: translateY(-12px) scale(0.6); }
+
+      /* ── d20 container: the actual rotating icosahedron ──────────── */
+      /* NOTE: no filter here — filter flattens transform-style:preserve-3d in Chrome */
+      .dib-dice-d20 {
+        position: relative;
+        width: 200px;
+        height: 200px;
+        transform-style: preserve-3d;
+        will-change: transform;
+        transform: rotateX(-53deg);
+        transition: transform 0.48s cubic-bezier(.22,.68,0,1.0);
       }
-      @keyframes dib-dice-glow-burst {
-        0%   { transform: scale(0.8);  box-shadow: 0 0 0 0 transparent;               opacity: 0;   }
-        30%  { transform: scale(1.12); box-shadow: 0 0 18px 6px rgba(212,168,67,.6);  opacity: 1;   }
-        65%  { transform: scale(0.98); box-shadow: 0 0 10px 2px rgba(212,168,67,.3);  opacity: 0.5; }
-        100% { transform: scale(1);    box-shadow: 0 0 0 0 transparent;               opacity: 0;   }
+      .dib-dice-d20--rolling {
+        animation: dib-dice-roll 1600ms linear forwards;
+        transition: none;
       }
-      @keyframes dib-dice-glow-burst-crit {
-        0%   { transform: scale(0.8);  box-shadow: 0 0 0 0 transparent;               opacity: 0;   }
-        30%  { transform: scale(1.18); box-shadow: 0 0 24px 10px rgba(255,220,50,.8); opacity: 1;   }
-        65%  { transform: scale(0.96); box-shadow: 0 0 14px 4px rgba(255,200,0,.35);  opacity: 0.6; }
-        100% { transform: scale(1);    box-shadow: 0 0 0 0 transparent;               opacity: 0;   }
+      /* ground shadow — separate element below d20, no filter on d20 itself */
+      .dib-dice-shadow {
+        width: 130px;
+        height: 18px;
+        background: radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, transparent 70%);
+        filter: blur(6px);
+        pointer-events: none;
+        margin-top: -8px;
       }
-      @keyframes dib-dice-glow-burst-fail {
-        0%   { transform: scale(0.8);  box-shadow: 0 0 0 0 transparent;               opacity: 0;   }
-        30%  { transform: scale(1.14); box-shadow: 0 0 20px 7px rgba(239,68,68,.75);  opacity: 1;   }
-        65%  { transform: scale(0.97); box-shadow: 0 0 10px 2px rgba(239,68,68,.3);   opacity: 0.5; }
-        100% { transform: scale(1);    box-shadow: 0 0 0 0 transparent;               opacity: 0;   }
+
+      /* ── face numbers via ::before pseudo-element ────────────────── */
+      .dib-dice-face::before {
+        content: attr(data-n);
+        position: absolute;
+        top: 20px;
+        left: -100px;
+        width: 200px;
+        height: 86px;
+        text-align: center;
+        line-height: 78px;
+        font-size: 30px;
+        color: rgba(255,255,255,0.92);
+        text-shadow: 0 1px 4px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.7);
+        font-family: var(--dib-heading-font, 'Cinzel', Georgia, serif);
+        font-weight: 900;
+        pointer-events: none;
+        backface-visibility: hidden;
       }
-      @keyframes dib-dice-svg-land {
-        0%   { filter: drop-shadow(0 3px 10px rgba(0,0,0,.85)); }
-        30%  { filter: drop-shadow(0 3px 10px rgba(0,0,0,.85)) drop-shadow(0 0 14px rgba(212,168,67,.7)); }
-        100% { filter: drop-shadow(0 3px 10px rgba(0,0,0,.85)) drop-shadow(0 0 5px rgba(212,168,67,.2)); }
+
+      /* ── result number (large display after landing) ──────────────── */
+      .dib-dice-result {
+        text-align: center;
+        opacity: 0;
+        transform: scale(0.6) translateY(8px);
+        transition: opacity 0.3s ease, transform 0.35s cubic-bezier(.22,.68,0,1.3);
+        pointer-events: none;
+        min-width: 120px;
       }
-      @keyframes dib-dice-svg-land-crit {
-        0%   { filter: drop-shadow(0 3px 10px rgba(0,0,0,.85)); }
-        30%  { filter: drop-shadow(0 3px 10px rgba(0,0,0,.85)) drop-shadow(0 0 22px rgba(255,220,0,.9)); }
-        100% { filter: drop-shadow(0 3px 10px rgba(0,0,0,.85)) drop-shadow(0 0 8px rgba(255,200,0,.35)); }
+      .dib-dice-result--visible {
+        opacity: 1;
+        transform: scale(1) translateY(0);
       }
-      @keyframes dib-dice-svg-land-fail {
-        0%   { filter: drop-shadow(0 3px 10px rgba(0,0,0,.85)); }
-        30%  { filter: drop-shadow(0 3px 10px rgba(0,0,0,.85)) drop-shadow(0 0 18px rgba(239,68,68,.8)); }
-        100% { filter: drop-shadow(0 3px 10px rgba(0,0,0,.85)) drop-shadow(0 0 6px rgba(239,68,68,.2)); }
+      .dib-dice-result--drop .dib-dice-result-num {
+        text-decoration: line-through;
+        opacity: 0.55;
       }
+      .dib-dice-result-num {
+        display: block;
+        font-family: var(--dib-heading-font, 'Cinzel', Georgia, serif);
+        font-size: 80px;
+        font-weight: 900;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        color: var(--dib-frame-gold, #d4a843);
+        text-shadow:
+          0 0 40px rgba(212,168,67,0.85),
+          0 0 12px rgba(212,168,67,0.5),
+          0 3px 6px rgba(0,0,0,0.95);
+      }
+      .dib-dice-result[data-mode="crit"] .dib-dice-result-num {
+        color: #ffe459;
+        text-shadow:
+          0 0 60px rgba(255,220,30,0.95),
+          0 0 20px rgba(255,200,0,0.7),
+          0 3px 6px rgba(0,0,0,0.95);
+        animation: dib-dice-crit-pop 0.5s cubic-bezier(.22,.68,0,1.3) forwards;
+      }
+      .dib-dice-result[data-mode="fail"] .dib-dice-result-num {
+        color: #ef4444;
+        text-shadow:
+          0 0 40px rgba(239,68,68,0.85),
+          0 0 12px rgba(200,30,30,0.5),
+          0 3px 6px rgba(0,0,0,0.95);
+      }
+
+      /* ── roll keyframe: chaotic multi-axis tumble ────────────────── */
+      @keyframes dib-dice-roll {
+        0%   { transform: rotateX(-53deg) rotateY(0deg) rotateZ(0deg); }
+        10%  { transform: rotateX(20deg) rotateY(72deg) rotateZ(18deg) translateX(12px) translateY(-8px); }
+        22%  { transform: rotateX(-85deg) rotateY(185deg) rotateZ(-25deg) translateX(-16px) translateY(14px); }
+        36%  { transform: rotateX(130deg) rotateY(320deg) rotateZ(40deg) translateX(18px) translateY(-12px); }
+        50%  { transform: rotateX(220deg) rotateY(480deg) rotateZ(-15deg) translateX(-10px) translateY(10px); }
+        64%  { transform: rotateX(300deg) rotateY(640deg) rotateZ(28deg) translateX(8px) translateY(-6px); }
+        78%  { transform: rotateX(390deg) rotateY(790deg) rotateZ(-10deg) translateX(-5px) translateY(4px); }
+        90%  { transform: rotateX(445deg) rotateY(905deg) rotateZ(5deg) translateX(2px) translateY(-2px); }
+        100% { transform: rotateX(480deg) rotateY(960deg) rotateZ(0deg) translateX(0) translateY(0); }
+      }
+
+      /* ── crit pop animation on the result number ──────────────────── */
+      @keyframes dib-dice-crit-pop {
+        0%   { transform: scale(1); }
+        35%  { transform: scale(1.28); }
+        58%  { transform: scale(0.91); }
+        78%  { transform: scale(1.07); }
+        100% { transform: scale(1); }
+      }
+
       /* ===== END DICE ANIMATION SYSTEM ===== */
     `;
 

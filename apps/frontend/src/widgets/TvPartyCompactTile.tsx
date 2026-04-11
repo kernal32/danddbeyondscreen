@@ -1,5 +1,5 @@
-import type { NormalizedCharacter } from '@ddb/shared-types';
-import { BUILTIN_GENERIC_PLAYER_AVATAR_URL } from '@ddb/shared-types';
+import { BUILTIN_GENERIC_PLAYER_AVATAR_URL } from '@ddb/shared-types/avatars';
+import type { NormalizedCharacter } from '@ddb/shared-types/character';
 import { normalizedCharacterToPlayerCardData } from '../components/player-card/mapPlayerCardData';
 
 function hpPct(current: number, max: number): number {

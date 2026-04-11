@@ -37,6 +37,15 @@ Applies to the **DnD DM Screen** stack (Fastify backend, React frontend, SQLite,
 - Algorithm: **HS256** (`jose`), subject = user id, issued-at + **30d** expiry.
 - Same secret used for cookie encryption — rotation requires re-login and re-encrypt strategy (document any future rotation runbook).
 
+## Admin API (`ADMIN_EMAIL_ALLOWLIST`)
+
+- Non-empty **`ADMIN_EMAIL_ALLOWLIST`** (comma-separated emails, trimmed + lowercased like login) enables **`/api/admin/*`**. The same user JWT as `/api/me` is used; there is no separate admin token.
+- Use **TLS at the edge**; treat the list like operator credentials. Prefer a small set of dedicated addresses.
+- **Rate limit:** **120 requests / 60s** per authenticated user id on admin routes (in-memory fixed window).
+- **Deactivate:** `POST /api/admin/users/:id/deactivate` with JSON `{ "confirmEmail": "<exact account email>" }`. You cannot deactivate your own account from the console; you cannot deactivate the **last** active user whose email is still on the allowlist. Deactivation is a **soft delete** (tombstone email, new password hash, `deleted_at` set).
+- **Audit:** `admin_audit_log` stores deactivation events (actor id, target id, IP, User-Agent, minimal detail).
+- **`GET /api/me`** includes **`isAdmin`** when an allowlist exists (always `false` if the list is empty).
+
 ## Rate limiting
 
 | Layer | Behaviour |

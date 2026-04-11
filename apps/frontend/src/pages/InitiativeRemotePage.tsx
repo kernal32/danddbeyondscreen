@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import type { PublicSessionState } from '@ddb/shared-types';
+import type { PublicSessionState } from '@ddb/shared-types/session';
 import { apiGet, apiPost } from '../api';
 import DisplayPinOverlay from '../components/DisplayPinOverlay';
 import InitiativeRemoteMoreSheet from '../components/InitiativeRemoteMoreSheet';
@@ -27,6 +27,18 @@ export default function InitiativeRemotePage() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsCharacterId, setSettingsCharacterId] = useState<string | null>(null);
+  const [density, setDensity] = useState<'compact' | 'normal' | 'large'>(() => {
+    const saved = localStorage.getItem('ddb-remote-density');
+    return (saved === 'compact' || saved === 'normal' || saved === 'large') ? saved : 'compact';
+  });
+
+  const cycleDensity = () => {
+    setDensity((prev) => {
+      const next = prev === 'compact' ? 'normal' : prev === 'normal' ? 'large' : 'compact';
+      localStorage.setItem('ddb-remote-density', next);
+      return next;
+    });
+  };
 
   useLayoutEffect(() => {
     setMeta(null);
@@ -169,9 +181,13 @@ export default function InitiativeRemotePage() {
             <InitiativeTrackerPanel
               init={live.initiative}
               party={live.party}
-              large
+              sessionUiMode="display"
+              large={density === 'large'}
+              rowDensity={density === 'compact' ? 'compact' : 'normal'}
               emit={emit}
               allowCombatCueControls
+              displayInitiativeMaskTotals={live.displayInitiativeMaskTotals === true}
+              displayInitiativeRevealLowest={live.displayInitiativeRevealLowest === true}
               onOpenConditionsForCharacter={(characterId) => {
                 setSettingsCharacterId(characterId);
                 setSettingsOpen(true);
@@ -190,6 +206,14 @@ export default function InitiativeRemotePage() {
             >
               {connected ? 'Live' : 'Reconnecting…'}
             </div>
+            <button
+              type="button"
+              title="Cycle card size"
+              className="rounded-full border border-white/25 bg-black/50 px-3 py-1.5 text-sm text-[var(--text)] shadow-lg backdrop-blur-sm hover:bg-black/60"
+              onClick={cycleDensity}
+            >
+              {density === 'compact' ? 'S' : density === 'normal' ? 'M' : 'L'}
+            </button>
             <button
               type="button"
               className="rounded-full border border-white/25 bg-black/50 px-3 py-1.5 text-sm text-[var(--text)] shadow-lg backdrop-blur-sm hover:bg-black/60"

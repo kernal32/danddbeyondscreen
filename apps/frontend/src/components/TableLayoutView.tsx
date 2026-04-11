@@ -1,10 +1,12 @@
-import type { PublicSessionState } from '@ddb/shared-types';
+import type { PublicSessionState } from '@ddb/shared-types/session';
 import TableLayoutRenderer from '../layout/TableLayoutRenderer';
+import type { SessionUiMode } from '../types/sessionUiMode';
 
 export type { TableLayoutRendererProps } from '../layout/TableLayoutRenderer';
 
 export default function TableLayoutView({
   state,
+  sessionUiMode,
   large = true,
   debugLayout = false,
   className = '',
@@ -12,6 +14,7 @@ export default function TableLayoutView({
   emit,
 }: {
   state: PublicSessionState;
+  sessionUiMode: SessionUiMode;
   large?: boolean;
   debugLayout?: boolean;
   className?: string;
@@ -22,6 +25,7 @@ export default function TableLayoutView({
   return (
     <TableLayoutRenderer
       state={state}
+      sessionUiMode={sessionUiMode}
       large={large}
       debugLayout={debugLayout}
       className={className}

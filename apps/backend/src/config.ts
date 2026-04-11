@@ -4,6 +4,22 @@ import { normalizePastedCookieHeader } from './util/normalize-dnd-cookie.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+const ADMIN_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Comma-separated emails (trimmed, lowercased). Empty = admin API disabled. */
+export function parseAdminEmailAllowlist(raw: string | undefined): string[] {
+  if (!raw?.trim()) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const part of raw.split(',')) {
+    const em = part.trim().toLowerCase();
+    if (!em || !ADMIN_EMAIL_RE.test(em) || seen.has(em)) continue;
+    seen.add(em);
+    out.push(em);
+  }
+  return out;
+}
+
 export function loadConfig() {
   const raw = process.env.DDB_COOKIE?.trim();
   const normalized = raw ? normalizePastedCookieHeader(raw) : '';
@@ -27,6 +43,8 @@ export function loadConfig() {
     /** SQLite database file; default under repo `data/`. */
     databasePath:
       process.env.DATABASE_PATH?.trim() || join(__dirname, '../../../data/ddb-screen.db'),
+    /** When non-empty, `/api/admin/*` is enabled for these account emails (JWT subject still user id). */
+    adminEmailAllowlist: parseAdminEmailAllowlist(process.env.ADMIN_EMAIL_ALLOWLIST),
   };
 }
 

@@ -20,14 +20,15 @@ export class DdbError extends Error {
 
 const CHARACTER_SERVICE_BASE = 'https://character-service.dndbeyond.com/character/v5/character/';
 
-function extractCharacterFromV5Envelope(body: Record<string, unknown>): Record<string, unknown> | null {
+/** Exported for unit tests — prefers nested full character JSON over slim v5 summaries. */
+export function extractCharacterFromV5Envelope(body: Record<string, unknown>): Record<string, unknown> | null {
   if (typeof body.id === 'number' && typeof body.name === 'string' && Array.isArray(body.classes)) {
     return body;
   }
   const data = body.data;
   if (data && typeof data === 'object') {
     const d = data as Record<string, unknown>;
-    if (typeof d.id === 'number' && d.name !== undefined) return d;
+    // Prefer nested full sheet (avatarUrl, inventory, …) over slim v5 summaries with only id/name.
     for (const key of ['character', 'characterSheet', 'sheet', 'characterData'] as const) {
       const nested = d[key];
       if (nested && typeof nested === 'object') {
@@ -35,6 +36,7 @@ function extractCharacterFromV5Envelope(body: Record<string, unknown>): Record<s
         if (typeof n.id === 'number' && n.name !== undefined) return n;
       }
     }
+    if (typeof d.id === 'number' && d.name !== undefined) return d;
   }
   return null;
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { mergePartyCardDisplayOptions, TABLE_THEME_IDS, type TableTheme } from '@ddb/shared-types';
+import { mergePartyCardDisplayOptions } from '@ddb/shared-types/party-card-display';
+import { TABLE_THEME_IDS, type TableTheme } from '@ddb/shared-types/themes';
 import PlayerCard from '../components/player-card/PlayerCard';
 import { MOCK_PLAYER_CARDS } from '../components/player-card/mockPlayerCards';
 import ThemedPanel from '../components/ui/ThemedPanel';

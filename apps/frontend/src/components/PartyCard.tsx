@@ -1,4 +1,5 @@
-import type { NormalizedCharacter, PartyCardDisplayOptions } from '@ddb/shared-types';
+import type { NormalizedCharacter } from '@ddb/shared-types/character';
+import type { PartyCardDisplayOptions } from '@ddb/shared-types/party-card-display';
 import ThemedPanel from './ui/ThemedPanel';
 import PlayerCard from './player-card/PlayerCard';
 import { normalizedCharacterToPlayerCardData } from './player-card/mapPlayerCardData';

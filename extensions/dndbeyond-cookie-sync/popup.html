@@ -1,82 +1,449 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DM Screen sync</title>
     <style>
-      body {
-        font-family: system-ui, sans-serif;
-        width: 360px;
-        padding: 12px;
-        margin: 0;
+      :root {
+        --bg: #0f172a;
+        --surface: #1e293b;
+        --border: #334155;
+        --text: #f1f5f9;
+        --muted: #94a3b8;
+        --accent: #22d3ee;
+        --accent-dim: rgba(34, 211, 238, 0.15);
+        --success: #4ade80;
+        --danger: #f87171;
+        --radius: 10px;
+        --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
       }
-      label {
-        display: block;
-        font-size: 12px;
-        margin-top: 8px;
-        color: #444;
-      }
-      input {
-        width: 100%;
+
+      * {
         box-sizing: border-box;
-        margin-top: 4px;
-        padding: 6px;
       }
-      button {
+
+      body {
+        margin: 0;
+        width: 380px;
+        font-family: var(--font);
+        font-size: 13px;
+        line-height: 1.45;
+        color: var(--text);
+        background: var(--bg);
+        padding: 16px;
+      }
+
+      .header {
+        margin-bottom: 14px;
+      }
+
+      .header h1 {
+        margin: 0 0 4px;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      .header p {
+        margin: 0;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .backend-pill {
+        display: inline-block;
         margin-top: 8px;
+        padding: 4px 10px;
+        font-size: 11px;
+        font-family: ui-monospace, monospace;
+        color: var(--accent);
+        background: var(--accent-dim);
+        border-radius: 999px;
+        border: 1px solid rgba(34, 211, 238, 0.35);
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 12px 14px;
+        margin-bottom: 12px;
+      }
+
+      label.field-label {
+        display: block;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      input[type='text'],
+      input[type='password'],
+      input[type='number'] {
         width: 100%;
-        padding: 8px;
+        padding: 9px 11px;
+        font-size: 13px;
+        font-family: inherit;
+        color: var(--text);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        outline: none;
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+
+      input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-dim);
+      }
+
+      input::placeholder {
+        color: #64748b;
+      }
+
+      .field {
+        margin-bottom: 12px;
+      }
+
+      .field:last-child {
+        margin-bottom: 0;
+      }
+
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 4px 0;
+      }
+
+      .toggle-row input[type='checkbox'] {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--accent);
         cursor: pointer;
       }
+
+      .toggle-row label {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        color: var(--text);
+      }
+
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      button {
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        font-family: inherit;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        transition: background 0.15s, transform 0.05s;
+      }
+
+      button:active {
+        transform: scale(0.99);
+      }
+
+      .btn-primary {
+        background: linear-gradient(180deg, #06b6d4 0%, #0891b2 100%);
+        color: #0f172a;
+      }
+
+      .btn-primary:hover {
+        filter: brightness(1.06);
+      }
+
+      .btn-secondary {
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+
+      .btn-secondary:hover {
+        background: #273549;
+      }
+
+      .btn-ghost {
+        background: transparent;
+        color: var(--muted);
+        border: 1px dashed var(--border);
+      }
+
+      .btn-ghost:hover {
+        color: var(--text);
+        border-color: var(--muted);
+      }
+
+      .status-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 12px 14px;
+        margin-bottom: 10px;
+      }
+
+      .status-card h2 {
+        margin: 0 0 10px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+      }
+
+      .status-grid {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 6px 14px;
+        font-size: 12px;
+      }
+
+      .status-grid dt {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .status-grid dd {
+        margin: 0;
+        font-weight: 500;
+        word-break: break-word;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+
+      .badge-idle {
+        background: #334155;
+        color: #e2e8f0;
+      }
+
+      .badge-polling {
+        background: rgba(34, 211, 238, 0.2);
+        color: var(--accent);
+      }
+
+      .badge-error {
+        background: rgba(248, 113, 113, 0.2);
+        color: var(--danger);
+      }
+
       #status {
+        font-size: 12px;
+        min-height: 1.2em;
+      }
+
+      #status.ok {
+        color: var(--success);
+      }
+
+      #status.err {
+        color: var(--danger);
+      }
+      .header-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .header-row .header-text {
+        flex: 1;
+        min-width: 0;
+      }
+      .icon-btn {
+        flex-shrink: 0;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 1;
+        transition: color 0.15s, border-color 0.15s, background 0.15s;
+      }
+      .icon-btn:hover {
+        color: var(--accent);
+        border-color: rgba(34, 211, 238, 0.45);
+        background: var(--accent-dim);
+      }
+      .icon-btn[aria-expanded='true'] {
+        color: var(--accent);
+        border-color: rgba(34, 211, 238, 0.55);
+      }
+      .settings-panel {
+        display: none;
+        margin-bottom: 12px;
+        padding: 12px 14px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+      .settings-panel.open {
+        display: block;
+      }
+      .settings-panel h2 {
+        margin: 0 0 10px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+      }
+      .settings-hint {
+        margin: 0 0 12px;
+        font-size: 11px;
+        line-height: 1.4;
+        color: var(--muted);
+      }
+      .debug-trace-wrap {
         margin-top: 10px;
-        font-size: 12px;
+      }
+      .debug-trace-wrap label {
+        display: block;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      #debugTracePre,
+      #debugActivityPre {
+        margin: 0;
+        max-height: 200px;
+        overflow: auto;
+        padding: 10px;
+        font-size: 10px;
+        line-height: 1.35;
+        font-family: ui-monospace, monospace;
+        color: #cbd5e1;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
         white-space: pre-wrap;
+        word-break: break-word;
       }
-      #liveStatus {
+      .debug-actions {
+        display: flex;
+        gap: 8px;
         margin-top: 8px;
+      }
+      .debug-actions button {
+        flex: 1;
+        padding: 8px 10px;
         font-size: 12px;
-        white-space: pre-wrap;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        padding: 8px;
-        background: #fafafa;
       }
-      .ok {
-        color: #0a0;
-      }
-      .err {
-        color: #c00;
-      }
-      .row {
-        margin-top: 8px;
-      }
+
     </style>
   </head>
   <body>
-    <p style="margin: 0 0 8px; font-size: 13px">
-      Sign in to <strong>dndbeyond.com</strong>. This extension polls your campaign in the background and uploads with your account API key.
-    </p>
-    <label>Backend</label>
-    <div id="backendValue" style="margin-top: 4px; font-size: 12px; color: #111">https://dnd.saltbushlabs.com</div>
-    <label>Campaign ID or link</label>
-    <input
-      id="campaignInput"
-      type="text"
-      autocomplete="off"
-      placeholder="Paste DDB campaign URL or campaign ID"
-    />
-    <label>API key (from your website account)</label>
-    <input id="apiKey" type="password" autocomplete="off" placeholder="dnd_..." />
-    <label>Poll interval (ms)</label>
-    <input id="pollIntervalMs" type="number" min="60000" step="1000" />
-    <div class="row">
-      <label><input id="pollingEnabled" type="checkbox" /> Enable polling</label>
+    <header class="header">
+      <div class="header-row">
+        <div class="header-text">
+          <h1>Campaign sync</h1>
+          <p>Stay signed in to <strong>dndbeyond.com</strong>. Polls run in the background.</p>
+        </div>
+        <button
+          type="button"
+          class="icon-btn"
+          id="settingsToggle"
+          title="Settings & debug"
+          aria-expanded="false"
+          aria-controls="settingsPanel"
+        >
+          ⚙
+        </button>
+      </div>
+      <span class="backend-pill" id="backendValue">https://dnd.saltbushlabs.com</span>
+    </header>
+
+    <div class="settings-panel" id="settingsPanel" role="region" aria-label="Settings and debug">
+      <h2>Settings</h2>
+      <p class="settings-hint">
+        With debug on, each <strong>Sync now</strong> / poll stores an <strong>activity log</strong> and <strong>HTTP trace</strong> below (no DevTools required). Optional: <strong>chrome://extensions</strong> → <strong>Service worker</strong> → Inspect for the same lines in the console.
+      </p>
+      <div class="toggle-row">
+        <input id="sheetScrapeConditions" type="checkbox" />
+        <label for="sheetScrapeConditions">Scrape CONDITIONS from open character sheets</label>
+      </div>
+      <p class="settings-hint" style="margin-top: -6px">
+        Keep each party member’s <strong>character sheet</strong> tab open on DDB while syncing. Labels are read from the page (15‑min cache) and merged into the upload when JSON has none or is stale.
+      </p>
+      <div class="toggle-row">
+        <input id="debugLogging" type="checkbox" />
+        <label for="debugLogging">Verbose debug logging</label>
+      </div>
+      <div class="debug-trace-wrap" id="debugTraceSection" hidden>
+        <label for="debugActivityPre">Activity log (last sync)</label>
+        <pre id="debugActivityPre" aria-label="Debug activity log"></pre>
+        <label for="debugTracePre">HTTP trace (last sync)</label>
+        <pre id="debugTracePre"></pre>
+        <div class="debug-actions">
+          <button type="button" class="btn-secondary" id="copyDebugSnapshot">Copy full debug JSON</button>
+          <button type="button" class="btn-secondary" id="copyActivityLog">Copy activity log</button>
+        </div>
+      </div>
     </div>
-    <button id="save">Save settings</button>
-    <button id="refreshNow">Refresh now</button>
-    <button id="reloadStatus">Reload status</button>
-    <div id="liveStatus"></div>
-    <div id="status"></div>
+
+    <div class="panel">
+      <div class="field">
+        <label class="field-label" for="campaignInput">Campaign</label>
+        <input
+          id="campaignInput"
+          type="text"
+          autocomplete="off"
+          placeholder="Campaign URL or numeric ID"
+        />
+      </div>
+      <div class="field">
+        <label class="field-label" for="apiKey">API key</label>
+        <input id="apiKey" type="password" autocomplete="off" placeholder="dnd_…" />
+      </div>
+      <div class="field">
+        <label class="field-label" for="pollIntervalMs">Interval (ms)</label>
+        <input id="pollIntervalMs" type="number" min="60000" step="1000" />
+      </div>
+      <div class="toggle-row">
+        <input id="pollingEnabled" type="checkbox" />
+        <label for="pollingEnabled">Enable automatic polling</label>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn-primary" id="save">Save settings</button>
+      <button type="button" class="btn-secondary" id="refreshNow">Sync now</button>
+      <button type="button" class="btn-ghost" id="reloadStatus">Refresh status</button>
+    </div>
+
+    <section class="status-card" aria-label="Sync status">
+      <h2>Status</h2>
+      <dl class="status-grid" id="statusGrid"></dl>
+    </section>
+    <div id="status" role="status"></div>
+
     <script src="popup.js"></script>
   </body>
 </html>

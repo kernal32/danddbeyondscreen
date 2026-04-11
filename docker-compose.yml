@@ -3,6 +3,9 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+      args:
+        # Lower CPU priority during `npm ci` / `tsc` so the host stays responsive (override with --build-arg BUILD_NICE=0).
+        BUILD_NICE: "15"
     ports:
       # Bind to loopback so only the host edge proxy (or local tools) can reach the API; use frontend :8080 publicly.
       - "127.0.0.1:3001:3001"
@@ -25,6 +28,10 @@ services:
     build:
       context: .
       dockerfile: docker/frontend.Dockerfile
+      args:
+        BUILD_NICE: "15"
+        # Fewer parallel Rollup file ops during Vite build (see apps/frontend/vite.config.ts). Use "20" or unset via Dockerfile default for max speed.
+        ROLLUP_MAX_PARALLEL_FILE_OPS: "3"
     ports:
       - "8080:80"
     depends_on:

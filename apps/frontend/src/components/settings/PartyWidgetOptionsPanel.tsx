@@ -1,11 +1,17 @@
-import { useState } from 'react';
-import type { PartyCardDisplayOptions, PlayerCardSectionId } from '@ddb/shared-types';
+import { useEffect, useState } from 'react';
+import type { PartyCardDisplayOptions, PlayerCardSectionId } from '@ddb/shared-types/party-card-display';
 import {
+  clampHpHeartNumeralSpacingPx,
+  clampPrimaryStatScalePercent,
   DEFAULT_PARTY_CARD_DISPLAY_OPTIONS,
   DEFAULT_PLAYER_CARD_SECTION_ORDER,
   effectivePlayerCardSectionOrder,
+  HP_HEART_NUMERAL_SPACING_PX_MAX,
+  HP_HEART_NUMERAL_SPACING_PX_MIN,
   mergePartyCardDisplayOptions,
-} from '@ddb/shared-types';
+  PRIMARY_STAT_SCALE_PERCENT_MAX,
+  PRIMARY_STAT_SCALE_PERCENT_MIN,
+} from '@ddb/shared-types/party-card-display';
 import PlayerCard from '../player-card/PlayerCard';
 import { MOCK_PLAYER_CARDS } from '../player-card/mockPlayerCards';
 
@@ -37,6 +43,14 @@ const GROUPS: { title: string; rows: BoolRow[] }[] = [
     title: 'Combat row',
     rows: [
       { key: 'showHitPoints', label: 'Hit points (numbers)' },
+      {
+        key: 'hitPointsCurrentOnly',
+        label: 'HP: current only (hide max — lines up with AC / spell DC)',
+      },
+      {
+        key: 'showTemporaryHitPoints',
+        label: 'Temporary HP (under heart + combined Temp HP block)',
+      },
       { key: 'showArmorClass', label: 'Armor class' },
       { key: 'showSpellSaveDC', label: 'Spell save DC (when known)' },
       { key: 'showInitiative', label: 'Initiative (primary row)' },
@@ -73,6 +87,7 @@ const GROUPS: { title: string; rows: BoolRow[] }[] = [
     title: 'Other',
     rows: [
       { key: 'showSpellSlots', label: 'Spell slots & class resources (D&D Beyond)' },
+      { key: 'showSpellSlotIngestRaw', label: 'Show raw DDB spell slot JSON (debug)' },
       { key: 'showConditions', label: 'Conditions' },
     ],
   },
@@ -102,6 +117,18 @@ export default function PartyWidgetOptionsPanel({
   const [previewIx, setPreviewIx] = useState(0);
   const mergedOpts = mergePartyCardDisplayOptions(value);
   const order = effectivePlayerCardSectionOrder(mergedOpts);
+
+  const [numeralDraft, setNumeralDraft] = useState('');
+  const [iconDraft, setIconDraft] = useState('');
+  const [hpHeartDraft, setHpHeartDraft] = useState('');
+
+  useEffect(() => {
+    setNumeralDraft(
+      value.primaryStatNumeralScalePercent === undefined ? '' : String(value.primaryStatNumeralScalePercent),
+    );
+    setIconDraft(value.primaryStatIconScalePercent === undefined ? '' : String(value.primaryStatIconScalePercent));
+    setHpHeartDraft(value.hpHeartNumeralSpacingPx === undefined ? '' : String(value.hpHeartNumeralSpacingPx));
+  }, [value.primaryStatNumeralScalePercent, value.primaryStatIconScalePercent, value.hpHeartNumeralSpacingPx]);
 
   const setBool = (key: BoolRow['key'], checked: boolean) => {
     onChange({ ...value, [key]: checked });
@@ -148,6 +175,150 @@ export default function PartyWidgetOptionsPanel({
           </div>
         </div>
       ))}
+
+      <details className="rounded-lg border border-amber-500/35 bg-amber-950/25 p-3 space-y-3">
+        <summary className="cursor-pointer text-sm font-medium text-[var(--accent)] select-none">
+          Primary stat size (devtools)
+        </summary>
+        <p className="text-xs text-[var(--muted)]">
+          Percentage of the <strong className="text-[var(--text)]">density-based</strong> size (TV / desktop).{' '}
+          <strong className="text-[var(--text)]">100</strong> matches the built-in default for the current layout; leave empty to use
+          that default. <strong className="text-[var(--text)]">Numerals</strong> = HP, AC, spell DC, initiative text;{' '}
+          <strong className="text-[var(--text)]">SVG</strong> = heart / shield / spell graphics only. Allowed{' '}
+          {PRIMARY_STAT_SCALE_PERCENT_MIN}–{PRIMARY_STAT_SCALE_PERCENT_MAX}. Use <strong className="text-[var(--text)]">Apply</strong>{' '}
+          to sync the TV.
+        </p>
+        <div className="grid sm:grid-cols-2 gap-3 text-sm">
+          <div className="flex flex-col gap-1 text-[var(--muted)]">
+            <span>Numerals (%)</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                inputMode="decimal"
+                className="min-w-0 flex-1 rounded border border-white/20 bg-black/40 px-2 py-1.5 font-mono text-[var(--text)]"
+                placeholder="default"
+                value={numeralDraft}
+                onChange={(e) => setNumeralDraft(e.target.value)}
+                onBlur={() => {
+                  const t = numeralDraft.trim();
+                  if (t === '') {
+                    onChange({ ...value, primaryStatNumeralScalePercent: undefined });
+                    return;
+                  }
+                  const n = Number(t);
+                  if (!Number.isFinite(n)) {
+                    setNumeralDraft(
+                      value.primaryStatNumeralScalePercent === undefined
+                        ? ''
+                        : String(value.primaryStatNumeralScalePercent),
+                    );
+                    return;
+                  }
+                  onChange({ ...value, primaryStatNumeralScalePercent: clampPrimaryStatScalePercent(n) });
+                }}
+                aria-label="Primary stat numeral scale percent"
+              />
+              <button
+                type="button"
+                className="shrink-0 rounded border border-white/20 px-2 py-1.5 text-xs text-[var(--text)] hover:bg-white/10"
+                onClick={() => onChange({ ...value, primaryStatNumeralScalePercent: undefined })}
+              >
+                Default
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1 text-[var(--muted)]">
+            <span>SVG graphics (%)</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                inputMode="decimal"
+                className="min-w-0 flex-1 rounded border border-white/20 bg-black/40 px-2 py-1.5 font-mono text-[var(--text)]"
+                placeholder="default"
+                value={iconDraft}
+                onChange={(e) => setIconDraft(e.target.value)}
+                onBlur={() => {
+                  const t = iconDraft.trim();
+                  if (t === '') {
+                    onChange({ ...value, primaryStatIconScalePercent: undefined });
+                    return;
+                  }
+                  const n = Number(t);
+                  if (!Number.isFinite(n)) {
+                    setIconDraft(
+                      value.primaryStatIconScalePercent === undefined ? '' : String(value.primaryStatIconScalePercent),
+                    );
+                    return;
+                  }
+                  onChange({ ...value, primaryStatIconScalePercent: clampPrimaryStatScalePercent(n) });
+                }}
+                aria-label="Primary stat icon SVG scale percent"
+              />
+              <button
+                type="button"
+                className="shrink-0 rounded border border-white/20 px-2 py-1.5 text-xs text-[var(--text)] hover:bg-white/10"
+                onClick={() => onChange({ ...value, primaryStatIconScalePercent: undefined })}
+              >
+                Default
+              </button>
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="rounded border border-white/20 px-2 py-1 text-xs text-[var(--muted)] hover:bg-white/10"
+          onClick={() =>
+            onChange({
+              ...value,
+              primaryStatNumeralScalePercent: undefined,
+              primaryStatIconScalePercent: undefined,
+            })
+          }
+        >
+          Default both (follow density only)
+        </button>
+
+        <div className="border-t border-white/10 pt-3">
+          <p className="mb-2 text-xs text-[var(--muted)]">
+            <strong className="text-[var(--text)]">Heart HP</strong> — extra vertical margin (px) on <em>both sides</em> of the thin
+            line between current (top) and max (bottom). <strong className="text-[var(--text)]">0</strong> or empty = default.{' '}
+            <strong className="text-[var(--text)]">Negative</strong> pulls the numbers closer (try <code className="text-[var(--text)]">-4</code>{' '}
+            to <code className="text-[var(--text)]">-12</code>). Range {HP_HEART_NUMERAL_SPACING_PX_MIN}…{HP_HEART_NUMERAL_SPACING_PX_MAX}.
+          </p>
+          <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
+            <span className="shrink-0">Spacing (px)</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              className="min-w-[6rem] rounded border border-white/20 bg-black/40 px-2 py-1.5 font-mono text-[var(--text)]"
+              placeholder="0"
+              value={hpHeartDraft}
+              onChange={(e) => setHpHeartDraft(e.target.value)}
+              onBlur={() => {
+                const t = hpHeartDraft.trim();
+                if (t === '') {
+                  onChange({ ...value, hpHeartNumeralSpacingPx: undefined });
+                  return;
+                }
+                const n = Number(t);
+                if (!Number.isFinite(n)) {
+                  setHpHeartDraft(value.hpHeartNumeralSpacingPx === undefined ? '' : String(value.hpHeartNumeralSpacingPx));
+                  return;
+                }
+                onChange({ ...value, hpHeartNumeralSpacingPx: clampHpHeartNumeralSpacingPx(n) });
+              }}
+              aria-label="Heart HP spacing between current and max in pixels"
+            />
+            <button
+              type="button"
+              className="rounded border border-white/20 px-2 py-1.5 text-xs text-[var(--text)] hover:bg-white/10"
+              onClick={() => onChange({ ...value, hpHeartNumeralSpacingPx: undefined })}
+            >
+              Default
+            </button>
+          </div>
+        </div>
+      </details>
 
       <div className="space-y-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Section order (top → bottom)</h3>

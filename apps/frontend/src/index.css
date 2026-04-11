@@ -423,3 +423,8 @@ body {
 .table-layout-editor-canvas .table-layout-grid {
   grid-template-columns: repeat(12, minmax(0, 1fr));
 }
+
+.numeric-stable {
+  font-variant-numeric: tabular-nums;
+  min-width: var(--num-min-ch, 2ch);
+}

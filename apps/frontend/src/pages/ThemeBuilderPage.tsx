@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import type { TableTheme, UserThemePreferences } from '@ddb/shared-types';
-import { TABLE_THEME_IDS } from '@ddb/shared-types';
-import { normalizeHexColor } from '@ddb/shared-types';
+import type { UserThemePreferences } from '@ddb/shared-types/theme-preferences';
+import { normalizeHexColor } from '@ddb/shared-types/theme-preferences';
+import { TABLE_THEME_IDS, type TableTheme } from '@ddb/shared-types/themes';
 import { apiGet, apiPut, ApiHttpError } from '../api';
 import { USER_TOKEN_KEY } from '../auth-storage';
 import { applySessionVisualTheme, THEME_LABELS } from '../theme/tableTheme';

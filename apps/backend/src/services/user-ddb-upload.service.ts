@@ -1,11 +1,19 @@
 import type Database from 'better-sqlite3';
 import type { PartySnapshot } from '@ddb/shared-types';
+import {
+  refreshDdbCharacterNamesFromSheetJson,
+  sanitizeNormalizedPartyConditions,
+} from './character.service.js';
+
+function sanitizeUserDdbParty(party: PartySnapshot): PartySnapshot {
+  return refreshDdbCharacterNamesFromSheetJson(sanitizeNormalizedPartyConditions(party));
+}
 
 export class UserDdbUploadService {
   constructor(private db: Database.Database) {}
 
   saveParty(userId: string, party: PartySnapshot): void {
-    const json = JSON.stringify(party);
+    const json = JSON.stringify(sanitizeUserDdbParty(party));
     const n = party.characters.length;
     const now = Date.now();
     this.db
@@ -26,7 +34,7 @@ export class UserDdbUploadService {
       .get(userId) as { party_json: string } | undefined;
     if (!row?.party_json) return null;
     try {
-      return JSON.parse(row.party_json) as PartySnapshot;
+      return sanitizeUserDdbParty(JSON.parse(row.party_json) as PartySnapshot);
     } catch {
       return null;
     }

@@ -1,4 +1,4 @@
-import type { HiddenPartyMember } from '@ddb/shared-types';
+import type { HiddenPartyMember } from '@ddb/shared-types/session';
 
 type Emit = (event: string, payload?: unknown) => void;
 

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import type { PublicSessionState } from '@ddb/shared-types';
-import { useSessionRuntimeStore, type SessionUiMode } from '../stores/sessionRuntimeStore';
+import type { PublicSessionState } from '@ddb/shared-types/session';
+import { useSessionRuntimeStore } from '../stores/sessionRuntimeStore';
+import type { SessionUiMode } from '../types/sessionUiMode';
 
 const socketUrl = import.meta.env.VITE_SOCKET_URL ?? '';
 

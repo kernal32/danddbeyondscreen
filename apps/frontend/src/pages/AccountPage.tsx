@@ -22,6 +22,7 @@ export default function AccountPage() {
   const [issuedKey, setIssuedKey] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const apiBase = useMemo(() => (typeof window !== 'undefined' ? window.location.origin : ''), []);
 
@@ -34,12 +35,14 @@ export default function AccountPage() {
       setLoading(true);
       setErr(null);
       try {
-        const [k, u] = await Promise.all([
+        const [k, u, me] = await Promise.all([
           apiGet<{ keys: ApiKeyRow[] }>('/api/me/api-keys', token),
           apiGet<{ upload: { characterCount: number; updatedAt: number } | null }>('/api/me/ddb-upload', token),
+          apiGet<{ isAdmin?: boolean }>('/api/me', token),
         ]);
         setKeys(k.keys);
         setUploadMeta(u.upload);
+        setIsAdmin(me.isAdmin === true);
       } catch (e) {
         setErr(e instanceof ApiHttpError ? e.message : 'Failed to load');
       } finally {
@@ -50,12 +53,14 @@ export default function AccountPage() {
 
   const refreshLists = async () => {
     if (!token) return;
-    const [k, u] = await Promise.all([
+    const [k, u, me] = await Promise.all([
       apiGet<{ keys: ApiKeyRow[] }>('/api/me/api-keys', token),
       apiGet<{ upload: { characterCount: number; updatedAt: number } | null }>('/api/me/ddb-upload', token),
+      apiGet<{ isAdmin?: boolean }>('/api/me', token),
     ]);
     setKeys(k.keys);
     setUploadMeta(u.upload);
+    setIsAdmin(me.isAdmin === true);
   };
 
   const createKey = () => {
@@ -108,6 +113,14 @@ export default function AccountPage() {
           </Link>
           <h1 className="text-2xl font-display font-bold text-[var(--accent)] mt-2">Account</h1>
           <p className="text-sm text-[var(--muted)] mt-1">{email}</p>
+          {isAdmin ? (
+            <Link
+              to="/admin"
+              className="inline-block mt-2 text-sm text-[var(--link)] hover:text-[var(--link-hover)] hover:underline"
+            >
+              Admin console →
+            </Link>
+          ) : null}
         </div>
         <button
           type="button"

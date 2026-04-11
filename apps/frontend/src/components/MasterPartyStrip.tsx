@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import type { HiddenPartyMember, NormalizedCharacter } from '@ddb/shared-types';
-import { BUILTIN_GENERIC_PLAYER_AVATAR_URL } from '@ddb/shared-types';
+import { BUILTIN_GENERIC_PLAYER_AVATAR_URL } from '@ddb/shared-types/avatars';
+import type { NormalizedCharacter } from '@ddb/shared-types/character';
+import type { HiddenPartyMember } from '@ddb/shared-types/session';
 import { IconEye, IconEyeOff } from './icons/VisibilityEyes';
 import UnhideCharacterDialog from './UnhideCharacterDialog';
 

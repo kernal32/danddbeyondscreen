@@ -18,6 +18,7 @@ export type UserPreferencesSnapshot = {
   tableLayout: TableLayout | null;
   partyCardDisplay: PartyCardDisplayOptions | null;
   themePreferences: UserThemePreferences;
+  combinedLayoutPresets: { id: string; name: string; layout: Record<string, unknown> }[];
 };
 
 export type UserPreferencesPatch = {
@@ -26,6 +27,7 @@ export type UserPreferencesPatch = {
   tableLayout?: TableLayout | null;
   partyCardDisplay?: PartyCardDisplayOptions | null;
   themePreferences?: UserThemePreferences | null;
+  combinedLayoutPresets?: { id: string; name: string; layout: Record<string, unknown> }[] | null;
 };
 
 type PrefRow = {
@@ -34,7 +36,30 @@ type PrefRow = {
   table_layout_json: string | null;
   party_card_display_json: string | null;
   theme_preferences_json: string | null;
+  combined_layout_presets_json: string | null;
 };
+
+function parseCombinedLayoutPresetsPayload(
+  value: unknown,
+): { id: string; name: string; layout: Record<string, unknown> }[] {
+  if (!Array.isArray(value)) return [];
+  const out: { id: string; name: string; layout: Record<string, unknown> }[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const o = item as Record<string, unknown>;
+    const id = String(o.id ?? '').trim();
+    const name = String(o.name ?? '').trim();
+    const layout = o.layout;
+    if (!id || !name || !layout || typeof layout !== 'object' || Array.isArray(layout)) continue;
+    out.push({
+      id: id.slice(0, 96),
+      name: name.slice(0, 120),
+      layout: layout as Record<string, unknown>,
+    });
+    if (out.length >= 100) break;
+  }
+  return out;
+}
 
 export class UserPreferencesService {
   constructor(
@@ -45,7 +70,7 @@ export class UserPreferencesService {
   getSnapshot(userId: string): UserPreferencesSnapshot {
     const row = this.db
       .prepare(
-        'SELECT default_seed_character_id, ddb_cookie_cipher, table_layout_json, party_card_display_json, theme_preferences_json FROM user_preferences WHERE user_id = ?',
+        'SELECT default_seed_character_id, ddb_cookie_cipher, table_layout_json, party_card_display_json, theme_preferences_json, combined_layout_presets_json FROM user_preferences WHERE user_id = ?',
       )
       .get(userId) as PrefRow | undefined;
 
@@ -56,6 +81,7 @@ export class UserPreferencesService {
         tableLayout: null,
         partyCardDisplay: null,
         themePreferences: parseUserThemePreferences(null),
+        combinedLayoutPresets: [],
       };
     }
 
@@ -93,6 +119,15 @@ export class UserPreferencesService {
       }
     }
 
+    let combinedLayoutPresets: { id: string; name: string; layout: Record<string, unknown> }[] = [];
+    if (row.combined_layout_presets_json) {
+      try {
+        combinedLayoutPresets = parseCombinedLayoutPresetsPayload(JSON.parse(row.combined_layout_presets_json) as unknown);
+      } catch {
+        /* ignore */
+      }
+    }
+
     return {
       defaultSeedCharacterId:
         row.default_seed_character_id != null && Number.isFinite(row.default_seed_character_id)
@@ -102,13 +137,14 @@ export class UserPreferencesService {
       tableLayout,
       partyCardDisplay,
       themePreferences,
+      combinedLayoutPresets,
     };
   }
 
   save(userId: string, patch: UserPreferencesPatch): void {
     const cur = this.db
       .prepare(
-        'SELECT default_seed_character_id, ddb_cookie_cipher, table_layout_json, party_card_display_json, theme_preferences_json FROM user_preferences WHERE user_id = ?',
+        'SELECT default_seed_character_id, ddb_cookie_cipher, table_layout_json, party_card_display_json, theme_preferences_json, combined_layout_presets_json FROM user_preferences WHERE user_id = ?',
       )
       .get(userId) as PrefRow | undefined;
 
@@ -165,6 +201,16 @@ export class UserPreferencesService {
       }
     }
 
+    let combinedPresetsJson = cur.combined_layout_presets_json;
+    if (patch.combinedLayoutPresets !== undefined) {
+      if (patch.combinedLayoutPresets === null) {
+        combinedPresetsJson = null;
+      } else {
+        const normalized = parseCombinedLayoutPresetsPayload(patch.combinedLayoutPresets as unknown);
+        combinedPresetsJson = JSON.stringify(normalized);
+      }
+    }
+
     this.db
       .prepare(
         `UPDATE user_preferences SET
@@ -173,10 +219,11 @@ export class UserPreferencesService {
           table_layout_json = ?,
           party_card_display_json = ?,
           theme_preferences_json = ?,
+          combined_layout_presets_json = ?,
           updated_at = ?
         WHERE user_id = ?`,
       )
-      .run(seed, cipher, layoutJson, partyCardJson, themePrefJson, Date.now(), userId);
+      .run(seed, cipher, layoutJson, partyCardJson, themePrefJson, combinedPresetsJson, Date.now(), userId);
   }
 
   /** Copy saved prefs into a new in-memory game session (e.g. after POST /api/sessions). */

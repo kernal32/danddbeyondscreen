@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { HiddenPartyMember, PublicSessionState } from '@ddb/shared-types';
-import { BUILTIN_GENERIC_PLAYER_AVATAR_URL } from '@ddb/shared-types';
+import { BUILTIN_GENERIC_PLAYER_AVATAR_URL } from '@ddb/shared-types/avatars';
+import type { HiddenPartyMember, PublicSessionState } from '@ddb/shared-types/session';
 import { IconEye } from './icons/VisibilityEyes';
 import UnhideCharacterDialog from './UnhideCharacterDialog';
 

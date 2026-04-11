@@ -63,6 +63,20 @@ export function isNormalizedCharacter(x: unknown): x is NormalizedCharacter {
   if (o.ingestedAt !== undefined) {
     if (typeof o.ingestedAt !== 'number' || !Number.isFinite(o.ingestedAt)) return false;
   }
+  if (o.ddbSheetJson !== undefined) {
+    if (!o.ddbSheetJson || typeof o.ddbSheetJson !== 'object' || Array.isArray(o.ddbSheetJson)) {
+      return false;
+    }
+  }
+  if (o.spellSlotSourceDebug !== undefined) {
+    if (
+      !o.spellSlotSourceDebug ||
+      typeof o.spellSlotSourceDebug !== 'object' ||
+      Array.isArray(o.spellSlotSourceDebug)
+    ) {
+      return false;
+    }
+  }
   return true;
 }
 

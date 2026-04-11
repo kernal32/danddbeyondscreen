@@ -1,9 +1,11 @@
 /**
- * Armor class badge: single-stroke shield outline (shared geometry with `IconShield` / `ShieldHeaterOutline`).
+ * Armor class badge: shield outline (shared geometry with `IconShield` / `ShieldHeaterOutline`).
+ * Shield uses Lucide path (ISC) — see `PartyCardStatIcons.tsx`.
  */
 
 import type { CSSProperties } from 'react';
 import { SHIELD_VIEWBOX, ShieldHeaterOutline } from '../party/PartyCardStatIcons';
+import StatBadgeShell from './StatBadgeShell';
 
 type ArmorClassShieldBadgeProps = {
   ac: number | string;
@@ -15,6 +17,10 @@ type ArmorClassShieldBadgeProps = {
   /** Large centered AC numeral */
   valueClassName: string;
   textOutlineStyle?: CSSProperties;
+  /** Scale shield SVG only (e.g. primaryStatZoomStyle(iconPercent)). */
+  iconGraphicStyle?: CSSProperties;
+  /** Scale captions + numeral (e.g. primaryStatZoomStyle(numeralPercent)). */
+  textOverlayStyle?: CSSProperties;
 };
 
 export default function ArmorClassShieldBadge({
@@ -24,42 +30,35 @@ export default function ArmorClassShieldBadge({
   captionClassName,
   valueClassName,
   textOutlineStyle,
+  iconGraphicStyle,
+  textOverlayStyle,
 }: ArmorClassShieldBadgeProps) {
   const label = typeof ac === 'number' && Number.isFinite(ac) ? String(ac) : String(ac);
-  const blackTextOutline =
-    textOutlineStyle ??
-    ({ textShadow: '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000' } as const);
 
   return (
-    <div
-      className={`${frameClassName} ${className ?? ''}`}
-      role="img"
-      aria-label={`Armor class ${label}`}
-    >
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <div className="absolute inset-[3px] flex items-center justify-center overflow-hidden">
-          <svg
-            className="h-full w-full text-[var(--ac-tint)] opacity-90"
-            viewBox={SHIELD_VIEWBOX}
-            fill="none"
-            preserveAspectRatio="xMidYMid meet"
-            aria-hidden
-          >
-            <ShieldHeaterOutline />
-          </svg>
-        </div>
-      </div>
-      <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-0.5 px-1 text-center">
-        <span className={`${captionClassName} w-full text-center text-white`} style={blackTextOutline}>
-          Armor
-        </span>
-        <span className={`${valueClassName} max-w-full text-center leading-none text-white`} style={blackTextOutline}>
-          {label}
-        </span>
-        <span className={`${captionClassName} w-full text-center text-white`} style={blackTextOutline}>
-          Class
-        </span>
-      </div>
-    </div>
+    <StatBadgeShell
+      frameClassName={frameClassName}
+      className={className}
+      ariaLabel={`Armor class ${label}`}
+      icon={
+        <svg
+          className="h-full w-full text-[var(--ac-tint)] opacity-90"
+          viewBox={SHIELD_VIEWBOX}
+          fill="none"
+          preserveAspectRatio="xMidYMid meet"
+          aria-hidden
+        >
+          <ShieldHeaterOutline />
+        </svg>
+      }
+      captionClassName={captionClassName}
+      valueClassName={valueClassName}
+      value={label}
+      topCaption="Armor"
+      bottomCaption="Class"
+      textOutlineStyle={textOutlineStyle}
+      iconGraphicStyle={iconGraphicStyle}
+      textOverlayStyle={textOverlayStyle}
+    />
   );
 }

@@ -1,24 +1,18 @@
 import {
   effectiveInitiativeRollMode,
+  emptyInitiativeState,
   isInitiativeCombatTag,
   type InitiativeCombatTag,
   type InitiativeEntry,
   type InitiativeRollBreakdown,
   type InitiativeState,
   type NormalizedCharacter,
+  type PartySnapshot,
   type RollMode,
 } from '@ddb/shared-types';
 import { randomInt } from 'node:crypto';
 
-export function emptyInitiativeState(): InitiativeState {
-  return {
-    round: 1,
-    currentTurnIndex: 0,
-    turnOrder: [],
-    entries: {},
-    markedEntryId: null,
-  };
-}
+export { emptyInitiativeState };
 
 function newId(): string {
   return randomInt(1, 2 ** 31).toString(36) + Date.now().toString(36);
@@ -327,6 +321,41 @@ export function delayCurrent(state: InitiativeState): InitiativeState {
 
 export function clearInitiative(_state: InitiativeState): InitiativeState {
   return emptyInitiativeState();
+}
+
+/**
+ * When the live party updates (ingest / upload), initiative rows still hold stale `label` / `conditions`
+ * for PCs. Copy merged party name + conditions onto matching `entityId` rows (some UI reads `e.label`
+ * directly, not the party card).
+ */
+export function syncInitiativeConditionsFromParty(
+  state: InitiativeState,
+  mergedParty: PartySnapshot,
+): InitiativeState {
+  const byEntity = new Map(mergedParty.characters.map((c) => [String(c.id), c]));
+  let changed = false;
+  const nextEntries: Record<string, InitiativeEntry> = { ...state.entries };
+  for (const [entryKey, e] of Object.entries(state.entries)) {
+    const c = byEntity.get(String(e.entityId));
+    if (!c) continue;
+    const trimmedName = (c.name || '').trim();
+    const nextLabel = trimmedName.length > 0 ? trimmedName : e.label;
+    const conds =
+      c.conditions && c.conditions.length > 0 ? [...c.conditions] : undefined;
+    const prev = e.conditions;
+    const sameConds =
+      (prev == null && conds == null) ||
+      (prev != null &&
+        conds != null &&
+        prev.length === conds.length &&
+        prev.every((v, i) => v === conds[i]));
+    const sameLabel = nextLabel === e.label;
+    if (sameLabel && sameConds) continue;
+    changed = true;
+    nextEntries[entryKey] = { ...e, label: nextLabel, conditions: conds };
+  }
+  if (!changed) return state;
+  return { ...state, entries: nextEntries };
 }
 
 /** Clear tracker and add non-absent party members (mods from character.initiativeBonus). */
