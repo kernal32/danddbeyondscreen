@@ -4367,9 +4367,9 @@
         padding: 12px 14px 18px;
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        grid-auto-rows: minmax(min-content, auto);
+        grid-auto-rows: 1fr;
         gap: 14px 16px;
-        align-content: start;
+        align-content: stretch;
       }
       .dib-party-card {
         --pc-gold: var(--dib-pc-gold, #c9a962);
@@ -4378,6 +4378,8 @@
         --pc-teal-dim: var(--dib-pc-teal-dim, #1a9e8c);
         --pc-panel: var(--dib-pc-panel, #1a1614);
         --pc-ink: #0f0e0d;
+        display: flex;
+        flex-direction: column;
         border: 2px solid var(--dib-iron, #5a5a62);
         border-top: 4px solid var(--dib-frame-gold, #d4a843);
         border-radius: 8px;
@@ -4430,6 +4432,7 @@
       .dib-pc-stack {
         display: flex;
         flex-direction: column;
+        flex: 1;
         gap: 0;
         padding: var(--dib-card-padding, 10px);
         min-height: 0;
