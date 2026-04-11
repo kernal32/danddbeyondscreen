@@ -4042,9 +4042,15 @@
         overflow-x: hidden;
         background: #080809;
         padding: 8px 8px 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
       }
       .dib-init-card {
-        margin-bottom: 8px;
+        flex: 1 1 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
         border-radius: 8px;
         border: 1px solid var(--dib-iron, #5a5a62);
         border-left: 3px solid var(--dib-iron, #5a5a62);
@@ -4076,6 +4082,7 @@
         color: #64748b;
       }
       .dib-init-card-row {
+        flex: 1 1 0;
         display: flex;
         flex-direction: row;
         align-items: center;
