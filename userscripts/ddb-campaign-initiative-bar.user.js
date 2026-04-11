@@ -973,12 +973,16 @@
     const leg = legPlural || legSingular;
     let u = leg && svc ? mergeDdbLegacyAndV5Character(leg, svc) : leg || svc;
     if (!u) u = await tryGet(V4_CHAR_BASE + charId + '?_ts=' + ts, false);
-    // Compute AC / HP / passives via DDB's own character-tools rules engine
-    // (same approach as ootz0rz / TeaWithLucas DM Screen — moduleExport.getCharData).
-    if (u) {
+    // Compute AC / HP / passives via DDB's own character-tools rules engine.
+    // IMPORTANT: pass the raw v5 data (svc), NOT the merged result (u).
+    // The merge unions modifier buckets from legacy+v5, causing the rules engine
+    // to double-count bonuses (e.g. Defense FS appears twice → AC off by +1).
+    // The ootz0rz GM Screen only feeds the v5 character-service response.
+    const rawForEngine = svc || leg || u;
+    if (u && rawForEngine) {
       try {
         await __ensureRuleDataCached();
-        const computed = await __computeViaRulesEngine(u);
+        const computed = await __computeViaRulesEngine(rawForEngine);
         if (computed) {
           if (typeof computed.armorClass === 'number') u.armorClass = computed.armorClass;
           if (computed.hitPointInfo && typeof computed.hitPointInfo === 'object') {
