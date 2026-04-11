@@ -3334,8 +3334,8 @@
     // Phase: enter
     dice.forEach(function (d) { d.el.classList.add('dib-dice-anim--enter'); });
 
-    var ROLL_MS = 55;
-    var SLOWDOWN = [55, 110, 190, 310, 450];
+    var ROLL_MS = 40;
+    var SLOWDOWN = [50, 100, 180, 300];
     var stepIdx = [0, 0];
 
     function cycleNum(dieObj) {
@@ -3359,7 +3359,7 @@
         dieObj.el.classList.remove('dib-dice-anim--rolling');
         dieObj.el.classList.add('dib-dice-anim--land');
         if (dieObj.isDrop) {
-          var t2 = setTimeout(function () { dieObj.el.classList.add('dib-dice-anim--dropped'); }, 200);
+          var t2 = setTimeout(function () { dieObj.el.classList.add('dib-dice-anim--dropped'); }, 150);
           _diceAddTimer(t2);
         }
         return;
@@ -3368,20 +3368,20 @@
       var newIv = setInterval(function () { cycleNum(dieObj); }, SLOWDOWN[stepI]);
       _diceAddTimer(newIv);
       ivRef[0] = newIv;
-      var t = setTimeout(function () { slowdownStep(dieObj, ivRef, stepI + 1); }, SLOWDOWN[stepI] * 3);
+      var t = setTimeout(function () { slowdownStep(dieObj, ivRef, stepI + 1); }, SLOWDOWN[stepI] * 2);
       _diceAddTimer(t);
     }
 
-    var totalRollTime = 650;
+    var totalRollTime = 350;
     dice.forEach(function (d, i) {
       var ivRef = [intervals[i]];
-      var delay = i * 120;
+      var delay = i * 80;
       var t = setTimeout(function () { slowdownStep(d, ivRef, 0); }, totalRollTime + delay);
       _diceAddTimer(t);
     });
 
     // Exit after all dice land
-    var exitDelay = totalRollTime + (dice.length - 1) * 120 + SLOWDOWN.reduce(function (a, b) { return a + b * 3; }, 0) + 900;
+    var exitDelay = totalRollTime + (dice.length - 1) * 80 + SLOWDOWN.reduce(function (a, b) { return a + b * 2; }, 0) + 500;
     var exitT = setTimeout(function () {
       dice.forEach(function (d) { d.el.classList.add('dib-dice-anim--exit'); });
       var removeT = setTimeout(function () {
