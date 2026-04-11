@@ -3688,7 +3688,12 @@
     const curId = s.turnOrder[s.currentTurnIndex];
     const cur = curId ? s.entries[curId] : null;
 
-    initiativeUi.meta.textContent = 'Round ' + s.round + (cur ? ' — ' + cur.label : '');
+    var combatSecs = s.round * 6;
+    var timeStr = combatSecs >= 60
+      ? Math.floor(combatSecs / 60) + 'm ' + (combatSecs % 60) + 's'
+      : combatSecs + 's';
+    var combatTime = s.combatActive ? '  ·  combat time: ' + timeStr : '';
+    initiativeUi.meta.textContent = 'Round ' + s.round + (cur ? ' — ' + cur.label : '') + combatTime;
 
     if (initiativeUi.nextRoundBtn) {
       initiativeUi.nextRoundBtn.style.display = s.combatActive && s.turnOrder.length ? '' : 'none';
