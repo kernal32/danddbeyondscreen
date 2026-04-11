@@ -3497,9 +3497,13 @@
 
     const body = document.createElement('div');
     body.className = 'dib-init-body dib-init-body--click';
-    body.title = 'Edit conditions';
+    body.title = 'Set active turn';
     body.addEventListener('click', () => {
-      openConditionEditor(eid);
+      const turnIdx = localInitState ? localInitState.turnOrder.indexOf(eid) : -1;
+      if (turnIdx === -1) return;
+      mutateLocalInitiative(function (st) {
+        return Object.assign({}, st, { currentTurnIndex: turnIdx });
+      });
     });
 
     const nameRow = document.createElement('div');
