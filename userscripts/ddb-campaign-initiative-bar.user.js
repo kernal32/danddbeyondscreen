@@ -3322,23 +3322,35 @@
       }
     }
 
-    /* ── overlay (dark scrim, flex-centres the stage(s)) ──────────── */
+    /* ── card-relative positioning ───────────────────────────────────── */
+    var cardRect = _diceGetCardRect(eid);
+    var hostRect  = layer.getBoundingClientRect();
+    /* centre of the card in layer-local coords; fall back to viewport centre */
+    var cardCX = cardRect
+      ? cardRect.left - hostRect.left + cardRect.width  * 0.5
+      : hostRect.width  * 0.5;
+    var cardCY = cardRect
+      ? cardRect.top  - hostRect.top  + cardRect.height * 0.4
+      : hostRect.height * 0.5;
+
+    /* ── transparent anchor that is cleaned up as a single node ───────── */
     var overlay = document.createElement('div');
     overlay.className = 'dib-dice-overlay';
     layer.appendChild(overlay);
 
     /* ── build one d20 die ──────────────────────────────────────────── */
-    function makeDie(value, dMode, isDrop) {
+    function makeDie(value, dMode, isDrop, stageX, stageY) {
       var isG = (dMode === 'crit');
       var isR = (dMode === 'fail');
 
-      /* face fill colours — brighter "lit" shade for top ring, darker for bottom */
       var faceTop = isG ? 'rgba(212,168,30,0.85)' : isR ? 'rgba(200,35,35,0.85)' : 'rgba(20,130,38,0.85)';
       var faceMid = isG ? 'rgba(170,128,20,0.82)' : isR ? 'rgba(160,28,28,0.82)' : 'rgba(16,100,28,0.82)';
       var faceBot = isG ? 'rgba(130,95,12,0.78)'  : isR ? 'rgba(120,20,20,0.78)'  : 'rgba(10,75,20,0.78)';
 
       var stage = document.createElement('div');
       stage.className = 'dib-dice-stage' + (isDrop ? ' dib-dice-stage--drop' : '');
+      /* position absolutely over the card */
+      stage.style.cssText = 'left:' + stageX + 'px;top:' + stageY + 'px;';
 
       var d20 = document.createElement('div');
       d20.className = 'dib-dice-d20';
@@ -3348,7 +3360,6 @@
         var face = document.createElement('div');
         face.className = 'dib-dice-face';
         face.setAttribute('data-n', String(fi));
-        /* pick shade by ring: top cap=faceTop, upper ring=faceMid, lower ring=faceMid, bottom cap=faceBot */
         var col = (fi <= 5) ? faceTop : (fi >= 16) ? faceBot : faceMid;
         face.style.cssText =
           'position:absolute;left:50%;top:0;' +
@@ -3363,11 +3374,9 @@
         d20.appendChild(face);
       }
 
-      /* ground shadow element */
       var shadow = document.createElement('div');
       shadow.className = 'dib-dice-shadow';
 
-      /* result number displayed after landing */
       var result = document.createElement('div');
       result.className = 'dib-dice-result' + (isDrop ? ' dib-dice-result--drop' : '');
       result.setAttribute('data-mode', dMode);
@@ -3385,51 +3394,40 @@
       return { stage: stage, d20: d20, result: result, resultNum: resultNum, value: value, isDrop: isDrop, dMode: dMode };
     }
 
+    /* x offset so dual dice sit side-by-side without overlapping too much */
+    var dualOffset = isMulti ? 55 : 0;
     var dice = isMulti
-      ? [makeDie(kept, mode, false), makeDie(dropped, 'normal', true)]
-      : [makeDie(kept, mode, false)];
+      ? [makeDie(kept,    mode,     false, cardCX - dualOffset, cardCY),
+         makeDie(dropped, 'normal', true,  cardCX + dualOffset, cardCY)]
+      : [makeDie(kept, mode, false, cardCX, cardCY)];
 
     /* ── timing constants ────────────────────────────────────────────── */
-    var ROLL_START = 120;    /* ms before roll animation begins */
-    var ROLL_DUR   = 1600;   /* duration of CSS tumble animation */
-    var LAND_AT    = ROLL_START + ROLL_DUR;   /* 1720ms */
-    var REVEAL_AT  = LAND_AT + 480;           /* 2200ms */
-    var DONE_AT    = REVEAL_AT + 1150;        /* 3350ms */
-
-    /* fade in the scrim */
-    var tShow = setTimeout(function () {
-      overlay.classList.add('dib-dice-overlay--visible');
-    }, 20);
-    _diceAddTimer(tShow);
+    var ROLL_START = 80;     /* ms before roll animation begins */
+    var ROLL_DUR   = 1000;   /* duration of CSS tumble animation */
+    var LAND_AT    = ROLL_START + ROLL_DUR;   /* 1080ms */
+    var REVEAL_AT  = LAND_AT + 350;           /* 1430ms */
+    var DONE_AT    = REVEAL_AT + 900;         /* 2330ms */
 
     dice.forEach(function (d, dIdx) {
-      var BD = dIdx * 110; /* stagger second die slightly */
+      var BD = dIdx * 80; /* stagger second die slightly */
 
-      /* start roll animation */
       var tRoll = setTimeout(function () {
         d.d20.classList.add('dib-dice-d20--rolling');
       }, BD + ROLL_START);
       _diceAddTimer(tRoll);
 
-      /* land: capture animated position, stop animation, transition to face */
       var tLand = setTimeout(function () {
-        /* capture the live animated matrix so we can start transition from here */
         var host = document.getElementById('ddb-campaign-init-bar-host');
         var sr   = host && host.shadowRoot;
         var curXf = sr ? window.getComputedStyle(d.d20).transform : '';
-        /* stop animation */
         d.d20.classList.remove('dib-dice-d20--rolling');
-        /* lock element at its current visual position (no jump) */
         if (curXf && curXf !== 'none') d.d20.style.transform = curXf;
-        /* force reflow so transition fires from captured position */
         void d.d20.offsetWidth;
-        /* smooth settle to the correct face orientation */
-        d.d20.style.transition = 'transform 0.48s cubic-bezier(.22,.68,0,1.0)';
+        d.d20.style.transition = 'transform 0.4s cubic-bezier(.22,.68,0,1.0)';
         d.d20.style.transform  = landingTransform(d.value);
       }, BD + LAND_AT);
       _diceAddTimer(tLand);
 
-      /* reveal: show large result number */
       var tReveal = setTimeout(function () {
         d.resultNum.textContent = String(d.value);
         d.result.classList.add('dib-dice-result--visible');
@@ -3438,14 +3436,13 @@
     });
 
     /* exit after the last die finishes */
-    var lastEnd = (dice.length - 1) * 110 + DONE_AT;
+    var lastEnd = (dice.length - 1) * 80 + DONE_AT;
     var tExit = setTimeout(function () {
-      overlay.classList.remove('dib-dice-overlay--visible');
       overlay.classList.add('dib-dice-overlay--exit');
       var tRemove = setTimeout(function () {
         if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
         if (onDone) onDone();
-      }, 450);
+      }, 350);
       _diceAddTimer(tRemove);
     }, lastEnd);
     _diceAddTimer(tExit);
@@ -5586,35 +5583,34 @@
         overflow: hidden;
       }
 
-      /* ── overlay (dark scrim, centres the dice stage(s)) ─────────── */
+      /* ── overlay (transparent anchor, no scrim) ──────────────────── */
       .dib-dice-overlay {
         position: absolute;
         inset: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 48px;
-        background: rgba(0,0,0,0);
-        transition: background 0.28s ease;
         pointer-events: none;
       }
-      .dib-dice-overlay--visible {
-        background: rgba(0,0,0,0.62);
-      }
       .dib-dice-overlay--exit {
-        background: rgba(0,0,0,0) !important;
-        transition: background 0.45s ease !important;
+        animation: dib-dice-overlay-exit 0.35s ease forwards;
+      }
+      @keyframes dib-dice-overlay-exit {
+        to { opacity: 0; }
       }
 
-      /* ── stage: perspective container + result label ──────────────── */
+      /* ── stage: absolutely positioned over the card ───────────────── */
       .dib-dice-stage {
-        position: relative;
+        position: absolute;
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 20px;
+        gap: 12px;
         perspective: 900px;
         perspective-origin: 50% 35%;
+        transform: translate(-50%, -50%);
+        animation: dib-dice-stage-enter 0.12s ease both;
+      }
+      @keyframes dib-dice-stage-enter {
+        from { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+        to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
       }
       .dib-dice-stage--drop {
         opacity: 0.38;
@@ -5632,7 +5628,7 @@
         transition: transform 0.48s cubic-bezier(.22,.68,0,1.0);
       }
       .dib-dice-d20--rolling {
-        animation: dib-dice-roll 1600ms linear forwards;
+        animation: dib-dice-roll 1000ms linear forwards;
         transition: none;
       }
       /* ground shadow — separate element below d20, no filter on d20 itself */
