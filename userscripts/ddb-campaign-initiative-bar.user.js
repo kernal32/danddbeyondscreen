@@ -3692,8 +3692,8 @@
     var timeStr = combatSecs >= 60
       ? Math.floor(combatSecs / 60) + 'm ' + (combatSecs % 60) + 's'
       : combatSecs + 's';
-    var combatTime = s.combatActive ? '  ·  combat time: ' + timeStr : '';
-    initiativeUi.meta.textContent = 'Round ' + s.round + (cur ? ' — ' + cur.label : '') + combatTime;
+    var combatTime = s.combatActive ? ' - Combat Time: ' + timeStr : '';
+    initiativeUi.meta.textContent = 'Round ' + s.round + (cur ? ' - ' + cur.label : '') + combatTime;
 
     if (initiativeUi.nextRoundBtn) {
       initiativeUi.nextRoundBtn.style.display = s.combatActive && s.turnOrder.length ? '' : 'none';
