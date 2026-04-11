@@ -6034,6 +6034,22 @@
         mutateLocalInitiative(function (s) {
           return Object.assign({}, s, { markedEntryId: args.entryId || null });
         });
+      } else if (t === 'initiative:jumpToTurn' && cmd.args) {
+        var jumpEid = cmd.args.entryId;
+        if (jumpEid) {
+          mutateLocalInitiative(function (st) {
+            var turnIdx = st.turnOrder.indexOf(jumpEid);
+            if (turnIdx === -1) return st;
+            var revealed = [];
+            for (var i = 0; i < turnIdx; i++) {
+              revealed.push(st.turnOrder[i]);
+            }
+            return Object.assign({}, st, {
+              currentTurnIndex: turnIdx,
+              revealedEntryIds: revealed,
+            });
+          });
+        }
       } else if (t === 'initiative:setCombatTags' && cmd.args) {
         var eid = cmd.args.entryId;
         var tags = cmd.args.combatTags;

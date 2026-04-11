@@ -1,22 +1,23 @@
 import { useMemo, useState } from 'react';
-import QRCode from 'react-qr-code';
+import { DEBUG_DISABLE_DISPLAY_INITIATIVE_PRIVACY } from '../debug/displayInitiativePrivacy';
+import type { SessionUiMode } from '../types/sessionUiMode';
+import LazyQrCode from './LazyQrCode';
+import type { PartySnapshot } from '@ddb/shared-types/character';
 import type {
   InitiativeCombatTag,
   InitiativeEntry,
   InitiativeState,
-  PartySnapshot,
   RollMode,
-} from '@ddb/shared-types';
+} from '@ddb/shared-types/initiative';
+import { BUILTIN_GENERIC_PLAYER_AVATAR_URL } from '@ddb/shared-types/avatars';
 import {
-  BUILTIN_GENERIC_PLAYER_AVATAR_URL,
   effectiveInitiativeRollMode,
   isInitiativeCombatTag,
-} from '@ddb/shared-types';
+  shouldRevealInitiativeDetailOnDisplay,
+} from '@ddb/shared-types/initiative';
 import { IconEyeOff } from './icons/VisibilityEyes';
 import InitiativeDualRollReveal from './initiative/InitiativeDualRollReveal';
 import ThemedPanel from './ui/ThemedPanel';
-import { useSessionRuntimeStore } from '../stores/sessionRuntimeStore';
-
 const COMBAT_TAG_UI: { tag: InitiativeCombatTag; label: string; short: string }[] = [
   { tag: 'firstNextRound', label: 'Go first next round', short: '1st' },
   { tag: 'lastNextRound', label: 'Go last next round', short: 'Last' },
@@ -170,7 +171,7 @@ function resolveRow(e: InitiativeEntry, party: PartySnapshot) {
     label: ch?.name ?? e.label,
     avatarUrl: rawAvatar,
     isBuiltinGeneric,
-    conditions: ch?.conditions?.length ? ch.conditions : (e.conditions ?? []),
+    conditions: ch ? (ch.conditions ?? []) : (e.conditions ?? []),
     bonus: typeof ch?.initiativeBonus === 'number' ? ch.initiativeBonus : e.mod,
     dexModForTie,
     inspired: ch?.inspired === true,
@@ -256,6 +257,7 @@ function rowSizeTier(large: boolean | undefined, compact: boolean): RowSizeTier 
 export default function InitiativeTrackerPanel({
   init,
   party,
+  sessionUiMode,
   large,
   emit,
   initiativeRemoteUrl,
@@ -264,9 +266,13 @@ export default function InitiativeTrackerPanel({
   onOpenConditionsForCharacter,
   /** Table TV layout: hide the long “New combat / Next round” explainer under the buttons. */
   hideInitiativeControlHints,
+  /** From session: on display clients, mask initiative except leader (and optionally lowest). */
+  displayInitiativeMaskTotals,
+  displayInitiativeRevealLowest,
 }: {
   init: InitiativeState;
   party: PartySnapshot;
+  sessionUiMode: SessionUiMode;
   large?: boolean;
   emit?: (event: string, payload?: unknown) => void;
   /** When set (display token URL), DM/TV can show a QR for phone initiative controls. */
@@ -280,6 +286,8 @@ export default function InitiativeTrackerPanel({
   rowDensity?: 'normal' | 'compact';
   hideInitiativeControlHints?: boolean;
   onOpenConditionsForCharacter?: (characterId: string) => void;
+  displayInitiativeMaskTotals?: boolean;
+  displayInitiativeRevealLowest?: boolean;
 }) {
   const [showQr, setShowQr] = useState(false);
   const compact = rowDensity === 'compact';
@@ -290,8 +298,7 @@ export default function InitiativeTrackerPanel({
   const usingPreviewSamples = layoutPreview && init.turnOrder.length === 0;
   const visInit = usingPreviewSamples ? LAYOUT_PREVIEW_INIT : init;
   const markedId = visInit.markedEntryId ?? null;
-  const uiMode = useSessionRuntimeStore((s) => s.uiMode);
-  const isDisplay = uiMode === 'display';
+  const isDisplay = sessionUiMode === 'display';
 
   const order = visInit.turnOrder.map((id) => visInit.entries[id]).filter(Boolean) as InitiativeEntry[];
   const initiativeTotalCounts = useMemo(() => {
@@ -311,8 +318,12 @@ export default function InitiativeTrackerPanel({
 
   const onRowClick = (entryId: string) => {
     if (!canAct) return;
-    const next = markedId === entryId ? null : entryId;
-    emit!('initiative:markEntry', { entryId: next });
+    if (isDisplay) {
+      emit!('initiative:jumpToTurn', { entryId });
+    } else {
+      const next = markedId === entryId ? null : entryId;
+      emit!('initiative:markEntry', { entryId: next });
+    }
   };
 
   return (
@@ -370,7 +381,7 @@ export default function InitiativeTrackerPanel({
           }`}
         >
           <div className="rounded-lg bg-white p-2 [&_svg]:block">
-            <QRCode value={initiativeRemoteUrl} size={large ? 220 : 180} />
+            <LazyQrCode value={initiativeRemoteUrl} size={large ? 220 : 180} />
           </div>
           <button
             type="button"
@@ -390,7 +401,15 @@ export default function InitiativeTrackerPanel({
         {order.map((e, idx) => {
           const row = resolveRow(e, party);
           const tieGroupSize = initiativeTotalCounts.get(e.initiativeTotal) ?? 0;
-          const showDexTieHint = tieGroupSize >= 2;
+          const revealInitiativeDetail = shouldRevealInitiativeDetailOnDisplay(e, visInit, {
+            maskTotals:
+              !DEBUG_DISABLE_DISPLAY_INITIATIVE_PRIVACY &&
+              isDisplay &&
+              displayInitiativeMaskTotals === true,
+            revealLowest:
+              !DEBUG_DISABLE_DISPLAY_INITIATIVE_PRIVACY && displayInitiativeRevealLowest === true,
+          });
+          const showDexTieHint = revealInitiativeDetail && tieGroupSize >= 2;
           const active =
             !isDisplay && visInit.turnOrder[visInit.currentTurnIndex] === e.id;
           const marked = markedId === e.id;
@@ -479,7 +498,9 @@ export default function InitiativeTrackerPanel({
                       )}
                     </div>
                     <div className={`text-[var(--muted)] ${rz.roll}`}>
-                      {bd && bd.rolls.length ? (
+                      {!revealInitiativeDetail ? (
+                        <span className="tabular-nums text-[var(--muted)]">—</span>
+                      ) : bd && bd.rolls.length ? (
                         <>
                           <span className="tabular-nums">
                             Roll <strong className="text-[var(--text)]">{rollHint}</strong>
@@ -556,8 +577,10 @@ export default function InitiativeTrackerPanel({
                   </div>
                   <div className="shrink-0 self-center pr-1 text-right">
                     <div className={rz.total}>
-                      <span className="font-mono font-bold text-[var(--text)] tabular-nums">{e.initiativeTotal}</span>
-                      {e.locked && <span className={`${rz.lockExtra} ml-1`}>🔒</span>}
+                      <span className="font-mono font-bold text-[var(--text)] tabular-nums">
+                        {revealInitiativeDetail ? e.initiativeTotal : '—'}
+                      </span>
+                      {e.locked && revealInitiativeDetail && <span className={`${rz.lockExtra} ml-1`}>🔒</span>}
                     </div>
                   </div>
                 </button>
@@ -686,18 +709,20 @@ export default function InitiativeTrackerPanel({
       )}
       {canAct && order.length > 0 && (
         <p className={`mt-3 text-[var(--muted)] ${large ? 'text-sm md:text-base' : 'text-xs'}`}>
-          Tap a row to mark <strong className="text-[var(--warn-status)]">last</strong> (e.g. before the DM acts). Tap again to
-          clear.
+          {isDisplay
+            ? <>Tap a row to <strong className="text-[var(--accent)]">jump to that turn</strong> and reveal all prior rolls.</>
+            : <>Tap a row to mark <strong className="text-[var(--warn-status)]">last</strong> (e.g. before the DM acts). Tap again to clear.</>
+          }
         </p>
       )}
       {canAct && (
         <>
-          <div className="mt-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-3 border-t border-[var(--border-subtle)] pt-4">
-            <div className={`flex flex-wrap gap-2 ${large ? 'gap-3' : ''}`}>
+          <div className={`mt-4 flex flex-wrap gap-x-4 gap-y-3 border-t border-[var(--border-subtle)] pt-4 ${isDisplay ? 'items-center justify-center' : 'items-end justify-between'}`}>
+            <div className={`flex flex-wrap gap-2 ${isDisplay ? 'w-full justify-center gap-3' : large ? 'gap-3' : ''}`}>
               <button
                 type="button"
                 className={`rounded-lg font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] bg-[var(--btn-cta-bg)] hover:bg-[var(--btn-cta-hover)] ${
-                  large ? 'px-4 py-3 text-base md:text-lg' : 'px-3 py-1.5 text-sm'
+                  isDisplay ? 'px-5 py-3 text-base' : large ? 'px-4 py-3 text-base md:text-lg' : 'px-3 py-1.5 text-sm'
                 }`}
                 onClick={() => {
                   if (
@@ -716,18 +741,14 @@ export default function InitiativeTrackerPanel({
                 <>
                   <button
                     type="button"
-                    className={`rounded-lg text-white bg-[var(--btn-secondary-bg)] hover:bg-[var(--btn-secondary-hover)] ${
-                      large ? 'px-4 py-3 text-base md:text-lg' : 'px-3 py-1.5 text-sm'
-                    }`}
+                    className="rounded-lg px-5 py-3 text-base text-white bg-[var(--btn-secondary-bg)] hover:bg-[var(--btn-secondary-hover)]"
                     onClick={() => emit!('initiative:prevRound')}
                   >
                     Prev round
                   </button>
                   <button
                     type="button"
-                    className={`rounded-lg text-white bg-[var(--btn-secondary-bg)] hover:bg-[var(--btn-secondary-hover)] ${
-                      large ? 'px-4 py-3 text-base md:text-lg' : 'px-3 py-1.5 text-sm'
-                    }`}
+                    className="rounded-lg px-5 py-3 text-base text-white bg-[var(--btn-secondary-bg)] hover:bg-[var(--btn-secondary-hover)]"
                     onClick={() => emit!('initiative:nextRound')}
                   >
                     Next round
@@ -758,7 +779,7 @@ export default function InitiativeTrackerPanel({
             </div>
             {order.length > 0 ? (
               <div
-                className={`ml-auto shrink-0 text-right ${compact ? 'text-xs' : large ? 'text-sm md:text-base' : 'text-xs'}`}
+                className={`shrink-0 ${isDisplay ? 'w-full text-center' : 'ml-auto text-right'} ${compact ? 'text-xs' : large ? 'text-sm md:text-base' : 'text-xs'}`}
                 title="D&D 5e: 6 seconds × current round number (in-world time)"
               >
                 <div className="text-[var(--muted)] leading-tight">Combat Time:</div>

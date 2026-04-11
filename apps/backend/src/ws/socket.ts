@@ -1,5 +1,9 @@
 import type { Server } from 'socket.io';
-import { mergePartyOverrides, type SessionService } from '../services/session.service.js';
+import {
+  applyManualHpPatch,
+  mergePartyOverrides,
+  type SessionService,
+} from '../services/session.service.js';
 import type { CharacterService } from '../services/character.service.js';
 import type { AppConfig } from '../config.js';
 import { effectiveDdbCookie } from '../services/ddb-session-cookie.js';
@@ -263,6 +267,20 @@ export function attachSocketHandlers(
       });
     });
 
+    socket.on('initiative:jumpToTurn', (payload: { entryId?: string }) => {
+      displayOrDm(() => {
+        const sid = socket.data.sessionId as string;
+        const entryId = typeof payload?.entryId === 'string' ? payload.entryId : '';
+        if (!entryId) return;
+        sessions.update(sid, (s) => {
+          const idx = s.initiative.turnOrder.indexOf(entryId);
+          if (idx === -1) return;
+          s.initiative = { ...s.initiative, currentTurnIndex: idx };
+        });
+        broadcast(sid);
+      });
+    });
+
     socket.on('initiative:startCombat', () => {
       displayOrDm(() => {
         const sid = socket.data.sessionId as string;
@@ -319,7 +337,7 @@ export function attachSocketHandlers(
       dmOnly(() => {
         const sid = socket.data.sessionId as string;
         sessions.update(sid, (s) => {
-          sessions.setManualOverride(s, payload.characterId, {
+          applyManualHpPatch(s.manualOverrides, payload.characterId, {
             currentHp: payload.currentHp,
             tempHp: payload.tempHp,
           });
@@ -339,7 +357,14 @@ export function attachSocketHandlers(
           return;
         }
         sessions.update(sid, (s) => {
-          sessions.setManualOverride(s, rid, { conditions: payload.conditions });
+          const prev = s.manualOverrides[rid] ?? {};
+          if (payload.conditions.length < 1) {
+            const next = { ...prev };
+            delete next.conditions;
+            s.manualOverrides[rid] = next;
+          } else {
+            s.manualOverrides[rid] = { ...prev, conditions: payload.conditions };
+          }
         });
         broadcast(sid);
       });
@@ -499,6 +524,36 @@ export function attachSocketHandlers(
         broadcast(sid);
       });
     });
+
+    socket.on(
+      'session:setDisplayInitiativeMask',
+      (payload: {
+        displayInitiativeMaskTotals?: unknown;
+        displayInitiativeRevealLowest?: unknown;
+      }) => {
+        dmOnly(() => {
+          const sid = socket.data.sessionId as string;
+          const patch: { displayInitiativeMaskTotals?: boolean; displayInitiativeRevealLowest?: boolean } = {};
+          if (payload?.displayInitiativeMaskTotals !== undefined) {
+            if (typeof payload.displayInitiativeMaskTotals !== 'boolean') {
+              socket.emit('error', { message: 'Invalid displayInitiativeMaskTotals' });
+              return;
+            }
+            patch.displayInitiativeMaskTotals = payload.displayInitiativeMaskTotals;
+          }
+          if (payload?.displayInitiativeRevealLowest !== undefined) {
+            if (typeof payload.displayInitiativeRevealLowest !== 'boolean') {
+              socket.emit('error', { message: 'Invalid displayInitiativeRevealLowest' });
+              return;
+            }
+            patch.displayInitiativeRevealLowest = payload.displayInitiativeRevealLowest;
+          }
+          if (Object.keys(patch).length === 0) return;
+          sessions.update(sid, (s) => sessions.setDisplayInitiativeMaskSettings(s, patch));
+          broadcast(sid);
+        });
+      },
+    );
 
     socket.on('session:setTheme', (payload: { theme?: unknown; themePalette?: unknown }) => {
       dmOnly(() => {
