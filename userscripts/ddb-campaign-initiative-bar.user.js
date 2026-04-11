@@ -1376,6 +1376,12 @@
       function addPassCell(lab, val, svgPath) {
         const cell = document.createElement('div');
         cell.className = 'dib-pc-pass-cell';
+        const num = document.createElement('span');
+        num.className = 'dib-pc-pass-num';
+        num.textContent = val;
+        cell.appendChild(num);
+        const iconLab = document.createElement('span');
+        iconLab.className = 'dib-pc-pass-icon-lab';
         if (svgPath) {
           const ico = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
           ico.setAttribute('class', 'dib-pc-pass-icon');
@@ -1385,16 +1391,13 @@
           p.setAttribute('d', svgPath);
           p.setAttribute('fill', 'currentColor');
           ico.appendChild(p);
-          cell.appendChild(ico);
+          iconLab.appendChild(ico);
         }
-        const num = document.createElement('span');
-        num.className = 'dib-pc-pass-num';
-        num.textContent = val;
         const lb = document.createElement('span');
         lb.className = 'dib-pc-pass-lab';
         lb.textContent = lab;
-        cell.appendChild(num);
-        cell.appendChild(lb);
+        iconLab.appendChild(lb);
+        cell.appendChild(iconLab);
         passCol.appendChild(cell);
       }
       const PASS_EYE = 'M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z';
@@ -4679,8 +4682,14 @@
         flex-direction: column;
         align-items: center;
         text-align: center;
-        gap: 3px;
+        gap: 2px;
         min-width: 0;
+      }
+      .dib-pc-pass-icon-lab {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 3px;
       }
       .dib-pc-pass-num {
         font-size: var(--dib-stat-val-size, clamp(17px,4.2vw,22px));
@@ -4701,13 +4710,12 @@
         text-shadow: 0 1px 0 rgba(0,0,0,.8);
       }
       .dib-pc-pass-icon {
-        width: 20px;
-        height: 20px;
+        width: 16px;
+        height: 16px;
         color: var(--dib-frame-gold, #d4a843);
         opacity: 0.75;
         flex-shrink: 0;
         display: block;
-        margin-bottom: -4px;
       }
       .dib-pc-ds-group {
         display: flex;
