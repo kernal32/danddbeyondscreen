@@ -4700,6 +4700,7 @@
         opacity: 0.75;
         flex-shrink: 0;
         display: block;
+        margin-bottom: -4px;
       }
       .dib-pc-ds-group {
         display: flex;
