@@ -4449,7 +4449,7 @@
         justify-content: space-between;
         align-items: flex-end;
         gap: 6px;
-        margin-bottom: 6px;
+        margin-bottom: 0;
       }
       .dib-pc-stat-badge {
         flex: 1 1 0;
@@ -4506,7 +4506,7 @@
       }
       /* ribbon rule overridden below by the absolute-positioned banner */
       .dib-pc-section-title {
-        font-size: 9px;
+        font-size: 12px;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.16em;
@@ -4518,7 +4518,7 @@
       .dib-pc-section-title--small {
         letter-spacing: 0.10em;
         margin: 8px 0 5px;
-        font-size: 8px;
+        font-size: 11px;
       }
       .dib-pc-block { margin-top: 3px; }
       .dib-pc-stack-empty {
@@ -4533,8 +4533,8 @@
         flex-direction: row;
         align-items: flex-start;
         gap: 6px;
-        margin-top: 6px;
-        padding: 6px 0 10px;
+        margin-top: 2px;
+        padding: 3px 0 10px;
         border-bottom: none;
         position: relative;
       }
@@ -4591,15 +4591,15 @@
         text-shadow: 0 0 14px var(--dib-glow-dim, rgba(61,214,199,.3));
       }
       .dib-pc-pass-lab {
-        font-size: 7px;
+        font-size: 11px;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.07em;
         color: var(--dib-iron-light, #8a8a94);
       }
       .dib-pc-pass-icon {
-        width: 14px;
-        height: 14px;
+        width: 20px;
+        height: 20px;
         color: var(--pc-teal);
         opacity: 0.55;
         flex-shrink: 0;
@@ -4611,8 +4611,8 @@
         gap: 5px;
       }
       .dib-pc-ds-pip {
-        width: 24px;
-        height: 24px;
+        width: 32px;
+        height: 32px;
         border-radius: 999px;
         display: flex;
         align-items: center;
@@ -4637,8 +4637,8 @@
         box-shadow: 0 0 16px rgba(248,113,113,.32);
       }
       .dib-pc-ds-svg {
-        width: 13px;
-        height: 13px;
+        width: 18px;
+        height: 18px;
         display: block;
       }
       .dib-pc-spell-class {
@@ -4687,7 +4687,7 @@
         flex-wrap: wrap;
         align-items: center;
         gap: 10px 14px;
-        font-size: 12px;
+        font-size: 16px;
         line-height: 1.35;
       }
       .dib-pc-slot-group {
@@ -4700,18 +4700,18 @@
       .dib-pc-slot-lv {
         font-weight: 700;
         color: #a8a29e;
-        font-size: 11px;
+        font-size: 16px;
       }
       .dib-pc-slot-dots {
         display: inline-flex;
         flex-direction: row;
         align-items: center;
-        gap: 2px;
+        gap: 4px;
       }
       .dib-pc-slot-glyph {
         display: inline-block;
-        width: 9px;
-        height: 9px;
+        width: 13px;
+        height: 13px;
         font-size: 0;
         clip-path: polygon(50% 0%,100% 50%,50% 100%,0% 50%);
         vertical-align: middle;
@@ -4728,11 +4728,11 @@
       }
       .dib-pc-class-res-dots {
         gap: 5px 10px;
-        font-size: 11px;
+        font-size: 16px;
         line-height: 1.25;
       }
       .dib-pc-class-res-lv {
-        font-size: 9px;
+        font-size: 14px;
         font-weight: 600;
         color: #a8a29e;
         word-break: break-word;
