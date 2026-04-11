@@ -1,78 +1,81 @@
-# Userscripts (Tampermonkey / Violentmonkey)
+# DDB Campaign Initiative Bar
 
-These scripts run on **all `https://www.dndbeyond.com/...` and `https://dndbeyond.com/...` pages** (`@match` + regex `@include` in the userscript header) and `POST` party data to **your** DM Screen backend using an **account API key** (not a per-table token).
+A standalone Tampermonkey / Violentmonkey userscript that adds a **full-screen DM overlay** to D&D Beyond campaign pages. No backend, no account, no API key required — everything is stored locally in `localStorage`.
 
-## Security
+## Requirements
 
-- The API key can **replace your stored party upload** for that account. **Revoke** keys you do not need.
-- Prefer **`GM_xmlhttpRequest`** (see template) so requests are not blocked by browser CORS.
-- Only install scripts you trust; see also [TeaWithLucas/DNDBeyond-DM-Screen](https://github.com/TeaWithLucas/DNDBeyond-DM-Screen) security note.
+- [Tampermonkey](https://www.tampermonkey.net/) or [Violentmonkey](https://violentmonkey.github.io/) browser extension
+- A D&D Beyond account with at least one campaign
+- The campaign page open in your browser (`dndbeyond.com/campaigns/…`)
 
-## Setup
+## Installation
 
-1. **Register** on your DM Screen instance and open **Account** (`/account`).
-2. Copy **Backend URL** (your site origin, e.g. `https://dnd.saltbushlabs.com`).
-3. **Generate API key** — copy the full `dnd_…` secret once.
-4. Install [ddb-party-ingest.user.js](./ddb-party-ingest.user.js) in Tampermonkey. Set `BACKEND_URL` and `DND_API_KEY`.
-5. Add a matching `// @connect` line for your hostname if the app is not on `localhost`.
-6. **v0.4+** hooks **`fetch`** / **`XMLHttpRequest`** on the real page (`@grant unsafeWindow`, `@run-at document-start`). **v0.4.1+** unwraps `{ success: true, data: { … } }`. **v0.5+** adds **Pull from page** (scrape `/characters/{id}` links). **v0.6+** matches [TeaWithLucas/DNDBeyond-DM-Screen](https://github.com/TeaWithLucas/DNDBeyond-DM-Screen) / [ootz0rz](https://github.com/ootz0rz/DNDBeyond-DM-Screen): **`@require`** of DDB’s `vendors~characterTools` bundle, webpack bootstrap, **`makeGetAuthorizationHeaders`** (Cobalt), then **GET** `…/character/v5/character/{id}` and fall back to **`…/v4/character/{id}`**. Campaign cards: `.ddb-campaigns-character-card-footer-links-item-view` / `-edit`. If Pull breaks after a DDB deploy, update the `@require` URL to match the current bundle filename on `media.dndbeyond.com`. Then **Push now**.
+1. Open the raw URL of [`ddb-campaign-initiative-bar.user.js`](./ddb-campaign-initiative-bar.user.js) in your browser.
+2. Tampermonkey / Violentmonkey will detect the `==UserScript==` header and prompt you to install.
+3. Click **Install**. The overlay will appear automatically on any `/campaigns/` page.
 
-### Auto pull→push (v0.7+)
+> The script matches `https://www.dndbeyond.com/*` and `https://dndbeyond.com/*` and only mounts the overlay when the URL path is under `/campaigns/`.
 
-While a **campaign** or **character** URL is open (`/campaigns/…` or `/characters/…`), enable **Auto pull→push** in the ingest panel (or Tampermonkey menu **toggle auto pull→push**). The script runs **pull then push** immediately, then every **3 minutes** (see `AUTO_SYNC_EVERY_MS` in the script). It does **not** run on other DDB pages (avoids pushing a stale queue). Choice is stored in `localStorage` (`ddbIngestAutoSync`).
+## Features
 
-On the **DM Console**, enable **Auto-load when account upload changes** so the live table picks up new pushes without clicking **Load upload** (polls about every **45s**).
+### Initiative Tracker (left panel)
 
-### Debug panel
+- **Start Combat** — builds combatants from the live party roster, rolls initiative for each using their DDB modifier (DEX + proficiency + flat bonuses)
+- Per-entry **advantage / disadvantage** selector with confirmation
+- **Prev / Next turn** navigation with round counter and active-turn highlight
+- Conditions per combatant (add / remove); death save tracking
+- Roll breakdown shown below the character name; large initiative total on the right
+- State persists across page reloads via `localStorage` (`ddbCampaignInitBarInitiativeV1`)
 
-On **www.dndbeyond.com** (top frame only) a **DM Screen ingest** panel appears bottom-right (shadow DOM). If you do not see it: enable the script on the site, hard-refresh, menu **show / hide debug panel**. Console: `[ddb-party-ingest]`.
+### Party Cards (right panel, live)
 
-### Debugging when Pull or Push misbehaves
+Party data is polled from the DDB character API approximately every **60 seconds**; click **↻ Refresh** in the header to force an immediate update.
 
-If **nothing** runs (no panel, queue always empty): confirm **Tampermonkey is enabled** for the tab and that scripts are **not** disabled for `dndbeyond.com` (extension icon / per-site toggle).
+Each card displays:
 
-**Do not paste your DM Screen API key into chats** — say only whether `apiKeyLooksConfigured` is true in the snapshot below (revoke keys if you already exposed one).
+| Stat | Detail |
+|---|---|
+| HP | Current / max; temp HP sub-label; **low-HP pulse** at ≤ 25 %, **critical pulse** at ≤ 10 % |
+| AC | Armor Class |
+| Spell Save DC | Shown when the character has spellcasting |
+| Passives | Perception, Investigation, Insight |
+| Spell slots | Diamond pips per level |
+| Class resources | Pips for features like Ki, Rage, Lay on Hands pool |
+| Conditions | Inline badges from the DDB character sheet |
+| Death saves | Success / failure pips |
+| Inspiration | Gold shimmer on the card |
 
-1. **Update** to **v0.7.0+** of `ddb-party-ingest.user.js` in Tampermonkey (save, hard-refresh DDB).
-2. **Verbose logging** (optional): open DevTools on the DDB tab → **Console** (top frame), run:
-   ```javascript
-   localStorage.setItem('ddbIngestDebug', '1');
-   location.reload();
-   ```
-3. Reproduce: open your **campaign → Characters** (or a character sheet), click **Pull from page**, then **Debug snapshot** (panel button) or Tampermonkey menu **print debug snapshot**.
-4. In the same console, you can also run:
-   ```javascript
-   __ddbPartyIngestDebug.snapshot().then(console.log);
-   ```
-5. **Interpret `snapshot()`** (no secrets in output) — **yes, pasting the whole JSON is correct** for debugging:
-   - **`scrapedCharacterIds`**: empty → DOM selectors did not find links; try the exact campaign “active party” view or a `/characters/{id}` URL.
-   - **`sandboxJsonpDDBCTLength`**: `0` → `@require` bundle may have failed to load (blocked, 404, or wrong hash); fix the `// @require` URL in the script header to match `media.dndbeyond.com` (compare [TeaWithLucas script](https://github.com/TeaWithLucas/DNDBeyond-DM-Screen/blob/master/ddb-dm-screen.user.js)).
-   - **`hasWebpackAuthShim`**: `false` → Cobalt bootstrap did not attach; same as above or a webpack/module error (check console for red errors).
-   - **`cobaltHeaderKeys`**: empty → no Cobalt headers; Pull will usually 401.
-   - **`queueLength`**: after a successful Pull, should be > 0 before **Push now**.
-   - **`queueSummary`**: portrait hints (`hasAvatarUrl`, `avatarUrlPreview`).
-   - **`queueCharacterShape`**: **`topLevelKeys`** in the dozens/hundreds = full sheet; ~20 or less = slim API (often no `avatarUrl`). **`hasInventoryArray`** should be true for a full sheet.
-   - **`lastPullByCharacterId`**: which endpoint won on the last **Pull** (`legacy`, `legacy-plural`, `v5`, `v4`). If you only see **`v5`/`v4`** and keys stay low, legacy JSON may be 404/HTML — check Network for **`/character/…/json`** and **`/characters/…/json`**.
-   - **v0.6.7+** tries both legacy paths, then v5/v4. **v0.6.5+** unwrap prefers nested **`data.character`**; **v0.6.4+** merge reduces slim overwrites.
-6. **Network tab**: filter `character-service` — open a character sheet and confirm a `v5` or `v4` character request returns **200** in the browser without the userscript; if the site itself gets 401, log in again or check DDB account access to that character.
-7. Turn verbose off: `localStorage.removeItem('ddbIngestDebug'); location.reload();`
+### Settings Panel
 
-### curl test (no Tampermonkey)
+Click **⚙ Settings** in the top-right header to open the settings panel:
 
-To verify the API and API key, POST JSON with `format: ddb_characters` and at least one DDB-shaped character object (see `apps/backend/src/__fixtures__/minimal-character.json` in this repo).
+| Setting | Options |
+|---|---|
+| Colour theme | Crimson · Obsidian · Forest · Ocean |
+| Card density | Compact · Normal · Large |
+| Name display | First name only · Full name |
+| Remote / TV display | Generate a QR code to open the initiative remote view on a TV or secondary device |
 
-## Using data in a live table
+### Remote / TV Display
 
-Tampermonkey updates the **account stash** only. To show it on the TV/table, open a **DM session**, stay **signed in** in the same browser, and click **Load upload into this table** on the DM console.
+The initiative state can be broadcast to an external device (TV, tablet) via the built-in WebSocket remote. Open **Settings → External Connection** and scan the QR code on the target device.
 
-## API reference
+## Colour Themes
 
-- `POST {BACKEND}/api/ingest/party`
-- Header: `Authorization: Bearer <API key>` (must start with `dnd_`)
-- Header: `Content-Type: application/json`
-- Body: see backend `registerApiRoutes` in `apps/backend/src/routes/api.ts` (`format` + `party` or `characters`).
-- **Merge vs replace (account stash):** If the JSON has **exactly one** character, the server **merges** into the previous stash by character id (other characters stay). If it has **two or more**, the stash is **replaced** with that payload. Optional flags: `mergeParty: true` (always merge by id) or `replaceParty: true` (always wipe and replace). For the same id, the **newer ingest** wins (server timestamp per batch).
+| Theme | Accent |
+|---|---|
+| Crimson | Deep red / gold |
+| Obsidian | Cool grey / silver |
+| Forest | Green / brass |
+| Ocean | Teal / steel |
 
-Requires **`AUTH_SECRET`** (32+ chars) on the server so accounts exist.
+## Known Caveats
 
-Rate limit: **45 requests per minute** per key (in-memory on the Node process).
+- **`@require` bundle** — the script requires DDB's `vendors~characterTools` bundle from `media.dndbeyond.com`. If character data stops loading after a DDB deploy, update the `@require` URL in the script header to match the current filename on that CDN (same pattern as [TeaWithLucas/DNDBeyond-DM-Screen](https://github.com/TeaWithLucas/DNDBeyond-DM-Screen)). Current pin: **Cobalt 999080**.
+- The overlay only mounts on top-level frames (`@noframes`); it will not appear inside iframes.
+- DDB is a single-page application — the script listens for `popstate` / `pushState` / `replaceState` so the overlay mounts correctly after client-side navigation.
+
+## Credits
+
+- [TeaWithLucas/DNDBeyond-DM-Screen](https://github.com/TeaWithLucas/DNDBeyond-DM-Screen) — character API patterns, Cobalt auth shim
+- [FaithLilley/DnDBeyond-Live-Campaign](https://github.com/FaithLilley/DnDBeyond-Live-Campaign) — original campaign overlay concept
