@@ -1401,13 +1401,13 @@
       const PASS_MAG = 'M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z';
       const PASS_BULB = 'M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z';
       if (c) {
-        addPassCell('Perc.', computePassiveSkill(c, 'perception'), PASS_EYE);
-        addPassCell('Inv.', computePassiveSkill(c, 'investigation'), PASS_MAG);
-        addPassCell('Ins.', computePassiveSkill(c, 'insight'), PASS_BULB);
+        addPassCell('Perc', computePassiveSkill(c, 'perception'), PASS_EYE);
+        addPassCell('Inv', computePassiveSkill(c, 'investigation'), PASS_MAG);
+        addPassCell('Ins', computePassiveSkill(c, 'insight'), PASS_BULB);
       } else {
-        addPassCell('Perc.', '—', PASS_EYE);
-        addPassCell('Inv.', '—', PASS_MAG);
-        addPassCell('Ins.', '—', PASS_BULB);
+        addPassCell('Perc', '—', PASS_EYE);
+        addPassCell('Inv', '—', PASS_MAG);
+        addPassCell('Ins', '—', PASS_BULB);
       }
       dsPassRow.appendChild(passCol);
       stack.appendChild(dsPassRow);
@@ -4661,9 +4661,9 @@
         flex: 1;
         min-width: 0;
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         justify-items: center;
-        align-items: end;
+        align-items: start;
         padding-top: 2px;
       }
       .dib-pc-pass-cell {
