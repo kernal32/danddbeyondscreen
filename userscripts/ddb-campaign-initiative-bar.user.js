@@ -385,6 +385,19 @@
     if (!c || typeof c !== 'object') return null;
     const sci = c.spellCasterInfo;
     if (!sci || typeof sci !== 'object') return null;
+    // The rules engine returns spellCasterInfo.castingInfo.saveDcs (array of {value, sources}).
+    const ci = sci.castingInfo;
+    if (ci && typeof ci === 'object' && Array.isArray(ci.saveDcs) && ci.saveDcs.length > 0) {
+      const first = ci.saveDcs[0];
+      const dc = Number(first.value);
+      if (Number.isFinite(dc) && dc >= 8 && dc <= 30) {
+        const label = (first.sources && first.sources[0] && first.sources[0].definition)
+          ? String(first.sources[0].definition.name || '').trim()
+          : '';
+        return { dc: Math.round(dc), attack: null, mod: null, label: label };
+      }
+    }
+    // Raw API field names.
     const dcRaw = sci.spellSaveDC ?? sci.spellSaveDc ?? sci.saveDc ?? sci.saveDC;
     const dc = Number(dcRaw);
     const atk = Number(
@@ -504,13 +517,25 @@
 
   function hpLine(c) {
     if (!c || typeof c !== 'object') return '—';
+    // Prefer rules-engine computed hitPointInfo (totalHp / remainingHp).
+    const hpi = c.hitPointInfo;
+    if (hpi && typeof hpi === 'object') {
+      const max = Number(hpi.totalHp ?? hpi.maxHitPoints);
+      const cur = Number(hpi.remainingHp ?? hpi.currentHitPoints);
+      const tmp = Number(hpi.tempHp ?? hpi.tempHitPoints) || 0;
+      if (Number.isFinite(max) && max > 0) {
+        let displayCur = Number.isFinite(cur) ? cur : max - (Number(hpi.removedHitPoints ?? c.removedHitPoints) || 0);
+        let s = Math.max(0, Math.floor(displayCur)) + '/' + Math.floor(max);
+        if (tmp > 0) s += ' +' + tmp + ' temp';
+        return s;
+      }
+    }
     const base = Number(c.baseHitPoints);
     const rem = Number(c.removedHitPoints) || 0;
     const tmp = Number(c.temporaryHitPoints) || 0;
     const ov = c.overrideHitPoints;
     const max = Number.isFinite(Number(ov)) && Number(ov) > 0 ? Number(ov) : Number.isFinite(base) ? base : '?';
-    const cur =
-      typeof max === 'number' ? Math.max(0, Math.floor(max - rem)) : '?';
+    const cur = typeof max === 'number' ? Math.max(0, Math.floor(max - rem)) : '?';
     let s = cur + '/' + max;
     if (tmp > 0) s += ' +' + tmp + ' temp';
     return s;
@@ -2481,28 +2506,33 @@
 
   function hpBoxParts(c) {
     if (!c || typeof c !== 'object') return { cur: '—', max: '—', temp: 0 };
-    // Fixed HP (overrideHitPoints) is a top-level field on the raw character JSON from both
-    // the legacy and v5 endpoints.  The v5 character-service hitPointInfo.maxHitPoints does NOT
-    // apply overrideHitPoints, so we must override it here.
-    const ovRaw = c.overrideHitPoints;
-    const ovNum = Number.isFinite(Number(ovRaw)) && Number(ovRaw) > 0 ? Math.floor(Number(ovRaw)) : null;
     const hpi = c.hitPointInfo;
     if (hpi && typeof hpi === 'object') {
-      let max = Number(
-        hpi.maxHitPoints ?? hpi.max ?? hpi.hitPointsMax ?? hpi.maximumHitPoints ?? hpi.hitPointMaximum,
-      );
-      if (ovNum !== null) max = ovNum; // Fixed HP overrides v5-computed max
-      const tmp = Number(hpi.tempHitPoints ?? hpi.temp ?? hpi.temporaryHitPoints) || 0;
+      // The character-tools rules engine (ootz0rz / TeaWithLucas) returns:
+      //   totalHp, remainingHp, tempHp, bonusHp
+      // The raw v5 API returns:
+      //   maxHitPoints, currentHitPoints, tempHitPoints, removedHitPoints
+      const max = Number(hpi.totalHp ?? hpi.maxHitPoints ?? hpi.max ?? hpi.hitPointsMax ?? hpi.maximumHitPoints);
+      const cur = Number(hpi.remainingHp ?? hpi.currentHitPoints ?? hpi.current ?? hpi.hitPoints);
+      const tmp = Number(hpi.tempHp ?? hpi.tempHitPoints ?? hpi.temp ?? hpi.temporaryHitPoints) || 0;
       if (Number.isFinite(max) && max > 0) {
-        // Derive cur from max - removed so it stays consistent when max was corrected above.
-        const rem = Number(hpi.removedHitPoints ?? c.removedHitPoints) || 0;
+        let displayCur;
+        if (Number.isFinite(cur)) {
+          displayCur = cur;
+        } else {
+          const rem = Number(hpi.removedHitPoints ?? c.removedHitPoints) || 0;
+          displayCur = max - rem;
+        }
         return {
-          cur: String(Math.max(0, Math.floor(max - rem))),
+          cur: String(Math.max(0, Math.floor(displayCur))),
           max: String(Math.floor(max)),
           temp: tmp > 0 ? tmp : 0,
         };
       }
     }
+    // Fallback: derive from top-level raw character fields.
+    const ovRaw = c.overrideHitPoints;
+    const ovNum = Number.isFinite(Number(ovRaw)) && Number(ovRaw) > 0 ? Math.floor(Number(ovRaw)) : null;
     const base = Number(c.baseHitPoints);
     const rem = Number(c.removedHitPoints) || 0;
     const tmp = Number(c.temporaryHitPoints) || 0;
