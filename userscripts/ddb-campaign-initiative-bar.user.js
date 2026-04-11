@@ -1295,9 +1295,8 @@
 
       const dcStr = c ? displaySpellSaveDc(c) : null;
       const hp = c ? hpBoxParts(c) : null;
-      const hpMain = hp ? hp.cur : '—';
-      const hpSub =
-        hp && hp.max !== '—' ? '/ ' + hp.max + (hp.temp ? '  +' + hp.temp + ' temp' : '') : '';
+      const hpMain = hp ? (hp.temp ? String(hp.temp) : hp.cur) : '—';
+      const hpSub = '';
 
       const statRow = document.createElement('div');
       statRow.className = 'dib-pc-stat-icon-row';
@@ -3508,6 +3507,15 @@
     nameRow.appendChild(nameEl);
     const partyC = e.entityId != null && e.entityId !== '' ? partyById[String(e.entityId)] : null;
     if (partyC && partyC.inspiration) card.classList.add('dib-init-card--inspired');
+    if (partyC) {
+      const koHp = hpBoxParts(partyC);
+      if (koHp && Number(koHp.cur) <= 0) {
+        const koDiv = document.createElement('div');
+        koDiv.className = 'dib-init-ko-overlay';
+        koDiv.textContent = 'ZzZ';
+        avWrap.appendChild(koDiv);
+      }
+    }
     const sheetCondLabs = partyC ? extractDdbConditionLabels(partyC) : [];
     const trackerAbbrevs = new Set(
       (Array.isArray(e.conditions) ? e.conditions : []).map(function (tc) {
@@ -3962,9 +3970,9 @@
         letter-spacing: 0.12em;
         padding: 8px 10px 4px;
       }
-      .dib-subhead-init { color: var(--dib-muted); }
+      .dib-subhead-init { color: var(--dib-muted); margin-top: auto; text-align: center; border-top: 1px solid var(--dib-border); padding-top: 6px; }
       .dib-subhead-party { color: var(--dib-red-hot); }
-      .dib-toolbar { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 8px 8px; border-bottom: 1px solid var(--dib-border); }
+      .dib-toolbar { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px 8px; border-top: 1px solid var(--dib-border); justify-content: center; }
       .dib-toolbar button, .dib-init-actions button {
         cursor: pointer;
         border: 1px solid var(--dib-iron, #5a5a62);
@@ -3982,9 +3990,10 @@
         background: linear-gradient(180deg, var(--dib-wood-mid, #2e1c10) 0%, var(--dib-wood-dark, #1c1008) 100%);
         box-shadow: 0 0 8px var(--dib-glow-dim, rgba(239,68,68,.18));
       }
-      .dib-meta { font-size: 11px; color: #fca5a5; padding: 6px 10px; border-bottom: 1px solid var(--dib-border); }
+      .dib-meta { font-size: 11px; color: #fca5a5; padding: 4px 10px; text-align: center; }
       .dib-init-list {
-        flex: 1 1 auto;
+        flex: 1 1 0;
+        min-height: 0;
         overflow: auto;
         overflow-x: hidden;
         background: #080809;
@@ -4041,6 +4050,24 @@
       }
       .dib-init-avatar-wrap {
         flex: 0 0 auto;
+        position: relative;
+      }
+      .dib-init-ko-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.65);
+        border-radius: 8px;
+        font-family: var(--dib-heading-font, 'Cinzel', Georgia, serif);
+        font-size: 28px;
+        font-weight: 900;
+        color: #e5e5e5;
+        letter-spacing: 0.1em;
+        text-shadow: 0 2px 8px rgba(0,0,0,.9), 0 0 12px rgba(200,200,200,.25);
+        z-index: 2;
+        pointer-events: none;
       }
       .dib-init-avatar {
         width: var(--dib-init-avatar-size, 64px);
@@ -4610,11 +4637,10 @@
       .dib-pc-pass-inline {
         flex: 1;
         min-width: 0;
-        display: flex;
-        flex-direction: row;
-        justify-content: space-evenly;
-        align-items: flex-end;
-        gap: 0;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        justify-items: center;
+        align-items: end;
         padding-top: 2px;
       }
       .dib-pc-pass-cell {
@@ -4622,7 +4648,7 @@
         flex-direction: column;
         align-items: center;
         text-align: center;
-        gap: 0;
+        gap: 3px;
         min-width: 0;
       }
       .dib-pc-pass-num {
@@ -4650,7 +4676,6 @@
         opacity: 0.75;
         flex-shrink: 0;
         display: block;
-        margin-bottom: -2px;
       }
       .dib-pc-ds-group {
         display: flex;
@@ -5270,10 +5295,10 @@
       Math.round(POLL_MS / 1000) +
       's · legacy+json → v5 → v4 · <a href="https://github.com/TeaWithLucas/DNDBeyond-DM-Screen" target="_blank" rel="noopener">TeaWithLucas</a> · <a href="https://github.com/FaithLilley/DnDBeyond-Live-Campaign" target="_blank" rel="noopener">Live-Campaign</a>';
 
-    colInit.appendChild(subInit);
-    colInit.appendChild(initToolbar);
-    colInit.appendChild(initMeta);
     colInit.appendChild(initList);
+    colInit.appendChild(subInit);
+    colInit.appendChild(initMeta);
+    colInit.appendChild(initToolbar);
 
     colParty.appendChild(rosterEl);
 
