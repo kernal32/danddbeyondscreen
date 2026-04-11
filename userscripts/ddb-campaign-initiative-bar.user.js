@@ -3502,7 +3502,14 @@
       const turnIdx = localInitState ? localInitState.turnOrder.indexOf(eid) : -1;
       if (turnIdx === -1) return;
       mutateLocalInitiative(function (st) {
-        return Object.assign({}, st, { currentTurnIndex: turnIdx });
+        var revealed = [];
+        for (var i = 0; i < turnIdx; i++) {
+          revealed.push(st.turnOrder[i]);
+        }
+        return Object.assign({}, st, {
+          currentTurnIndex: turnIdx,
+          revealedEntryIds: revealed,
+        });
       });
     });
 
