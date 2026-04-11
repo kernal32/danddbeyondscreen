@@ -628,6 +628,42 @@
           return dist_default.a.makeGetAuthorizationHeaders({});
         },
       };
+      // Mirror TeaWithLucas module 2080: load character_rules_engine_lib_es to compute AC, HP, etc.
+      try {
+        var charRulesLib = __webpack_require__(1);
+        if (charRulesLib && typeof charRulesLib === 'object') {
+          var charf = null;
+          for (var k in charRulesLib) {
+            if (charRulesLib[k] && typeof charRulesLib[k].getAbilities === 'function') {
+              charf = charRulesLib[k];
+              break;
+            }
+          }
+          if (charf && typeof charf.getAcTotal === 'function') {
+            // Expose via moduleExport only if TeaWithLucas didn't already set it.
+            if (!SW.moduleExport || typeof SW.moduleExport.getCharData !== 'function') {
+              var getCharData = function (state) {
+                return {
+                  armorClass: charf.getAcTotal(state),
+                  hitPointInfo: charf.getHitPointInfo(state),
+                  initiative: charf.getProcessedInitiative(state),
+                  inspiration: charf.getInspiration(state),
+                  conditions: charf.getActiveConditions(state),
+                  proficiencyBonus: charf.getProficiencyBonus(state),
+                  passivePerception: charf.getPassivePerception(state),
+                  passiveInvestigation: charf.getPassiveInvestigation(state),
+                  passiveInsight: charf.getPassiveInsight(state),
+                  spellCasterInfo: charf.getSpellCasterInfo(state),
+                };
+              };
+              if (!SW.moduleExport) SW.moduleExport = {};
+              SW.moduleExport.getCharData = getCharData;
+            }
+          }
+        }
+      } catch (rulesErr) {
+        console.warn('[ddb-init-bar] rules engine bootstrap skipped', rulesErr);
+      }
     };
     function webpackJsonpCallback(data) {
       const chunkIds = data[0];
@@ -738,6 +774,75 @@
     checkDeferredModules();
   }
 
+  /**
+   * Character-tools rules-engine bridge.
+   * Mirror of TeaWithLucas/DNDBeyond-DM-Screen module 2080:
+   *   __webpack_require__(1) → character_rules_engine_lib_es
+   * Exposes getAcTotal(state), getHitPointInfo(state), etc.
+   * @see https://github.com/TeaWithLucas/DNDBeyond-DM-Screen/wiki/Module-output
+   */
+  let __cachedRuleData = null;
+  const RULE_DATA_URL = 'https://character-service.dndbeyond.com/character/v4/rule-data';
+
+  /**
+   * Build a TeaWithLucas-compatible state object from raw character JSON + rule data,
+   * then call the character-tools rules engine to compute AC, HP, etc.
+   */
+  function __computeViaRulesEngine(rawChar) {
+    if (!rawChar || typeof rawChar !== 'object') return null;
+    // If TeaWithLucas DM Screen is running, moduleExport.getCharData is available.
+    try {
+      const me = SW.moduleExport;
+      if (me && typeof me.getCharData === 'function') {
+        const state = {
+          appEnv: {
+            characterId: rawChar.id,
+            characterServiceBaseUrl: null,
+            diceEnabled: false,
+            isMobile: false,
+            isReadonly: true,
+          },
+          appInfo: { error: null },
+          character: rawChar,
+          characterEnv: { context: 'SHEET', isReadonly: true, loadingStatus: 'LOADED' },
+          ruleData: __cachedRuleData || {},
+          serviceData: {
+            classAlwaysKnownSpells: {},
+            classAlwaysPreparedSpells: {},
+            definitionPool: {},
+            infusionsMappings: [],
+            knownInfusionsMappings: [],
+            ruleDataPool: {},
+            vehicleComponentMappings: [],
+            vehicleMappings: [],
+          },
+          confirmModal: { modals: [] },
+          modal: { open: {} },
+          sheet: { initError: null, initFailed: false },
+          sidebar: { activePaneId: null, alignment: 'right', isLocked: false, isVisible: false, panes: [], placement: 'overlay', width: 340 },
+          syncTransaction: { active: false, initiator: null },
+          toastMessage: {},
+        };
+        const computed = me.getCharData(state);
+        if (computed && typeof computed === 'object') return computed;
+      }
+    } catch (e) {
+      console.warn('[ddb-init-bar] rules engine via moduleExport failed', e);
+    }
+    return null;
+  }
+
+  async function __ensureRuleDataCached() {
+    if (__cachedRuleData) return;
+    try {
+      const r = await fetch(RULE_DATA_URL, { credentials: 'include' });
+      if (r.ok) {
+        const j = await r.json();
+        if (j && j.data) __cachedRuleData = j.data;
+      }
+    } catch (_) {}
+  }
+
   async function resolveDdbAuthHeaders() {
     try {
       var me = SW.moduleExport;
@@ -802,6 +907,18 @@
     const leg = legPlural || legSingular;
     let u = leg && svc ? mergeDdbLegacyAndV5Character(leg, svc) : leg || svc;
     if (!u) u = await tryGet(V4_CHAR_BASE + charId + '?_ts=' + ts, false);
+    // Try to compute AC / HP / etc. via the character-tools rules engine
+    // (same approach as TeaWithLucas DM Screen — uses moduleExport.getCharData).
+    if (u) {
+      await __ensureRuleDataCached();
+      const computed = __computeViaRulesEngine(u);
+      if (computed) {
+        if (typeof computed.armorClass === 'number') u.armorClass = computed.armorClass;
+        if (computed.hitPointInfo && typeof computed.hitPointInfo === 'object') {
+          u.hitPointInfo = Object.assign({}, u.hitPointInfo || {}, computed.hitPointInfo);
+        }
+      }
+    }
     return u;
   }
 
