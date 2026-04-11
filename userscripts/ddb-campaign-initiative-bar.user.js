@@ -3416,6 +3416,14 @@
         d.d20.style.transform  = landingTransform(d.value);
       }, BD + LAND_AT);
       _diceAddTimer(tLand);
+
+      /* crit/fail effect fires after settle transition has started */
+      if (!d.isDrop && d.dMode !== 'normal') {
+        var tEffect = setTimeout(function () {
+          _triggerCritEffect(d.dMode, d.stage);
+        }, BD + LAND_AT + 150);
+        _diceAddTimer(tEffect);
+      }
     });
 
     /* exit after the last die finishes */
@@ -3429,6 +3437,26 @@
       _diceAddTimer(tRemove);
     }, lastEnd);
     _diceAddTimer(tExit);
+  }
+
+  function _triggerCritEffect(type, stageEl) {
+    /* remove leftover effect from a rapid re-roll */
+    var old = stageEl.querySelector('.dib-crit-fx');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+
+    var fx = document.createElement('div');
+    fx.className = 'dib-crit-fx dib-crit-fx--' + type;
+
+    var badge = document.createElement('span');
+    badge.className = 'dib-crit-badge';
+    badge.textContent = type === 'crit' ? 'NAT 20' : 'NAT 1';
+    fx.appendChild(badge);
+    stageEl.appendChild(fx);
+
+    /* self-cleanup after badge animation ends (~1.6s) */
+    badge.addEventListener('animationend', function () {
+      if (fx.parentNode) fx.parentNode.removeChild(fx);
+    });
   }
 
   function _diceProcessQueue() {
@@ -5709,6 +5737,62 @@
         58%  { transform: scale(0.91); }
         78%  { transform: scale(1.07); }
         100% { transform: scale(1); }
+      }
+
+      /* ── critical roll effect overlay ────────────────────────────── */
+      .dib-crit-fx {
+        position: absolute;
+        pointer-events: none;
+        top: -100px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 200px;
+        height: 200px;
+        border-radius: 50%;
+      }
+      .dib-crit-fx--crit {
+        animation: dib-crit-glow 1.6s ease-out forwards;
+      }
+      .dib-crit-fx--fail {
+        animation: dib-fail-burst 1.4s ease-out forwards;
+      }
+      .dib-crit-badge {
+        position: absolute;
+        bottom: -50px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-family: var(--dib-heading-font, 'Cinzel', Georgia, serif);
+        font-size: 20px;
+        font-weight: 900;
+        letter-spacing: 0.07em;
+        white-space: nowrap;
+        animation: dib-crit-badge-rise 1.6s ease-out forwards;
+      }
+      .dib-crit-fx--crit .dib-crit-badge {
+        color: #ffe55a;
+        text-shadow: 0 0 14px rgba(255,200,30,0.95), 0 1px 3px rgba(0,0,0,0.85);
+      }
+      .dib-crit-fx--fail .dib-crit-badge {
+        color: #ff5555;
+        text-shadow: 0 0 14px rgba(210,30,30,0.95), 0 1px 3px rgba(0,0,0,0.85);
+      }
+      @keyframes dib-crit-glow {
+        0%   { box-shadow: 0 0 0    0   rgba(255,200,30,0); }
+        18%  { box-shadow: 0 0 50px 24px rgba(255,200,30,0.82); }
+        55%  { box-shadow: 0 0 70px 32px rgba(255,200,30,0.38); }
+        100% { box-shadow: 0 0 0    0   rgba(255,200,30,0); }
+      }
+      @keyframes dib-fail-burst {
+        0%   { box-shadow: 0 0 0    0   rgba(200,30,30,0); }
+        14%  { box-shadow: 0 0 55px 28px rgba(210,30,30,0.90); }
+        45%  { box-shadow: 0 0 65px 32px rgba(200,30,30,0.40); }
+        100% { box-shadow: 0 0 0    0   rgba(200,30,30,0); }
+      }
+      @keyframes dib-crit-badge-rise {
+        0%   { opacity: 0; transform: translateX(-50%) translateY(0px)   scale(0.7); }
+        18%  { opacity: 1; transform: translateX(-50%) translateY(-14px) scale(1.12); }
+        55%  { opacity: 1; transform: translateX(-50%) translateY(-22px) scale(1); }
+        100% { opacity: 0; transform: translateX(-50%) translateY(-36px) scale(0.9); }
       }
 
       /* ===== END DICE ANIMATION SYSTEM ===== */
