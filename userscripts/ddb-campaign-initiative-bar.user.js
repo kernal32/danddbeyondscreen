@@ -1167,22 +1167,6 @@
         classEl.textContent = 'Loading…';
       }
       titleBlock.appendChild(nameEl);
-      if (c) {
-        const sheetCondLabs = extractDdbConditionLabels(c);
-        if (sheetCondLabs.length) {
-          const inlineCond = document.createElement('div');
-          inlineCond.className = 'dib-pc-inline-conds';
-          for (let sci = 0; sci < sheetCondLabs.length; sci++) {
-            const pill = document.createElement('span');
-            pill.className = 'dib-pc-inline-cond-pill';
-            const full = sheetCondLabs[sci];
-            pill.title = full;
-            pill.textContent = '[' + abbrevConditionLabel(full) + ']';
-            inlineCond.appendChild(pill);
-          }
-          titleBlock.appendChild(inlineCond);
-        }
-      }
       titleBlock.appendChild(raceEl);
       titleBlock.appendChild(classEl);
       hdr.appendChild(avWrap);
@@ -1289,6 +1273,23 @@
         ph.className = 'dib-pc-stack-empty';
         ph.textContent = '…';
         stack.appendChild(ph);
+      }
+
+      if (c) {
+        const pcCondLabs = extractDdbConditionLabels(c);
+        if (pcCondLabs.length) {
+          const pcCondRow = document.createElement('div');
+          pcCondRow.className = 'dib-pc-cond-row';
+          for (let pci = 0; pci < pcCondLabs.length; pci++) {
+            const pill = document.createElement('span');
+            pill.className = 'dib-pc-inline-cond-pill';
+            const full = pcCondLabs[pci];
+            pill.title = full;
+            pill.textContent = '[' + abbrevConditionLabel(full) + ']';
+            pcCondRow.appendChild(pill);
+          }
+          stack.appendChild(pcCondRow);
+        }
       }
 
       card.appendChild(stack);
@@ -3354,6 +3355,12 @@
         return abbrevConditionLabel(tc && tc.name);
       }),
     );
+
+    // Bottom condition row — full-width strip below the main card row.
+    const condRow = document.createElement('div');
+    condRow.className = 'dib-init-cond-row';
+
+    // DDB sheet conditions (read-only, deduplicated against tracker conditions).
     for (let sxi = 0; sxi < sheetCondLabs.length; sxi++) {
       const slab = sheetCondLabs[sxi];
       const sab = abbrevConditionLabel(slab);
@@ -3362,11 +3369,10 @@
       sp.className = 'dib-init-cond-pill dib-init-cond-pill--ddb';
       sp.textContent = '[' + sab + ']';
       sp.title = slab + ' (from sheet)';
-      nameRow.appendChild(sp);
+      condRow.appendChild(sp);
     }
 
-    const condBar = document.createElement('div');
-    condBar.className = 'dib-init-conds';
+    // Tracker-editable conditions.
     const conds = Array.isArray(e.conditions) ? e.conditions : [];
     for (let ci = 0; ci < conds.length; ci++) {
       const pill = document.createElement('span');
@@ -3384,7 +3390,7 @@
         if (condEditorEntryId === eid) refreshConditionEditorList();
       });
       pill.appendChild(bx);
-      condBar.appendChild(pill);
+      condRow.appendChild(pill);
     }
 
     const rollLine = document.createElement('div');
@@ -3413,7 +3419,6 @@
     }
 
     body.appendChild(nameRow);
-    body.appendChild(condBar);
     body.appendChild(rollLine);
     body.appendChild(tieLine);
 
@@ -3478,6 +3483,7 @@
     row.appendChild(body);
     row.appendChild(aside);
     card.appendChild(row);
+    card.appendChild(condRow);
     return card;
   }
 
@@ -3873,6 +3879,15 @@
         flex: 0 1 auto;
         min-width: 0;
       }
+      .dib-init-body--click { cursor: pointer; }
+      .dib-init-cond-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 6px;
+        padding: 5px 10px 6px 10px;
+        border-top: 1px solid rgba(255,255,255,.07);
+      }
+      .dib-init-cond-row:empty { display: none; }
       .dib-init-cond-pill--ddb {
         flex: 0 0 auto;
         cursor: default;
@@ -3886,15 +3901,6 @@
         color: #7dd3fc;
         line-height: 1.2;
       }
-      .dib-init-body--click { cursor: pointer; }
-      .dib-init-conds {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 3px 5px;
-        margin-bottom: 3px;
-        min-height: 0;
-      }
-      .dib-init-conds:empty { display: none; }
       .dib-init-cond-pill {
         display: inline-flex;
         align-items: center;
@@ -4153,13 +4159,14 @@
         word-break: break-word;
         text-shadow: 0 1px 2px rgba(0,0,0,.4);
       }
-      .dib-pc-inline-conds {
+      .dib-pc-cond-row {
         display: flex;
         flex-wrap: wrap;
         gap: 4px 5px;
-        margin-top: 5px;
-        margin-bottom: 2px;
+        padding: 5px 8px 6px 8px;
+        border-top: 1px solid rgba(255,255,255,.07);
       }
+      .dib-pc-cond-row:empty { display: none; }
       .dib-pc-inline-cond-pill {
         font-size: 8px;
         font-weight: 700;
