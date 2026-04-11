@@ -3377,21 +3377,11 @@
       var shadow = document.createElement('div');
       shadow.className = 'dib-dice-shadow';
 
-      var result = document.createElement('div');
-      result.className = 'dib-dice-result' + (isDrop ? ' dib-dice-result--drop' : '');
-      result.setAttribute('data-mode', dMode);
-
-      var resultNum = document.createElement('span');
-      resultNum.className = 'dib-dice-result-num';
-      resultNum.textContent = '';
-      result.appendChild(resultNum);
-
       stage.appendChild(d20);
       stage.appendChild(shadow);
-      stage.appendChild(result);
       overlay.appendChild(stage);
 
-      return { stage: stage, d20: d20, result: result, resultNum: resultNum, value: value, isDrop: isDrop, dMode: dMode };
+      return { stage: stage, d20: d20, value: value, isDrop: isDrop, dMode: dMode };
     }
 
     /* x offset so dual dice sit side-by-side without overlapping too much */
@@ -3405,8 +3395,7 @@
     var ROLL_START = 80;     /* ms before roll animation begins */
     var ROLL_DUR   = 1000;   /* duration of CSS tumble animation */
     var LAND_AT    = ROLL_START + ROLL_DUR;   /* 1080ms */
-    var REVEAL_AT  = LAND_AT + 350;           /* 1430ms */
-    var DONE_AT    = REVEAL_AT + 900;         /* 2330ms */
+    var DONE_AT    = LAND_AT + 800;           /* 1880ms — hold briefly after landing */
 
     dice.forEach(function (d, dIdx) {
       var BD = dIdx * 80; /* stagger second die slightly */
@@ -3427,12 +3416,6 @@
         d.d20.style.transform  = landingTransform(d.value);
       }, BD + LAND_AT);
       _diceAddTimer(tLand);
-
-      var tReveal = setTimeout(function () {
-        d.resultNum.textContent = String(d.value);
-        d.result.classList.add('dib-dice-result--visible');
-      }, BD + REVEAL_AT);
-      _diceAddTimer(tReveal);
     });
 
     /* exit after the last die finishes */
