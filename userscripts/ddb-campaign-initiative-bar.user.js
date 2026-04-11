@@ -3430,7 +3430,8 @@
     var newCurrentId = s.turnOrder[s.currentTurnIndex];
     var newlyRevealed = [];
     (s.revealedEntryIds || []).forEach(function (eid) {
-      if (!prevRevealed.has(eid)) newlyRevealed.push(eid);
+      // exclude the previous current player — their roll was already visible as the active card
+      if (!prevRevealed.has(eid) && eid !== prevCurrentId) newlyRevealed.push(eid);
     });
     if (newCurrentId && newCurrentId !== prevCurrentId && entryHasRoll(s.entries[newCurrentId])) {
       if (newlyRevealed.indexOf(newCurrentId) === -1) newlyRevealed.push(newCurrentId);
