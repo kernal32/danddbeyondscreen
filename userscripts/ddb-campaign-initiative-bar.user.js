@@ -4636,16 +4636,18 @@
       }
       .dib-pc-pass-lab {
         font-size: 11px;
-        font-weight: 600;
+        font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.07em;
-        color: var(--dib-iron-light, #8a8a94);
+        letter-spacing: 0.16em;
+        color: var(--dib-frame-gold, #d4a843);
+        font-family: var(--dib-heading-font, 'Cinzel', Georgia, serif);
+        text-shadow: 0 1px 0 rgba(0,0,0,.8);
       }
       .dib-pc-pass-icon {
         width: 20px;
         height: 20px;
-        color: var(--pc-teal);
-        opacity: 0.55;
+        color: var(--dib-frame-gold, #d4a843);
+        opacity: 0.75;
         flex-shrink: 0;
         display: block;
         margin-bottom: -2px;
