@@ -203,7 +203,6 @@
       wrapEl.style.setProperty('--dib-init-row-minheight', '66px');
       wrapEl.style.setProperty('--dib-init-row-pad', '8px 8px 8px 6px');
       wrapEl.style.setProperty('--dib-init-name-size', '12px');
-      wrapEl.style.setProperty('--dib-init-firstname-size', 'clamp(13px, 3.5vw, 19px)');
       wrapEl.style.setProperty('--dib-init-rank-size', '13px');
       wrapEl.style.setProperty('--dib-init-total-size', '22px');
       wrapEl.style.setProperty('--dib-init-cond-size', '8px');
@@ -223,7 +222,6 @@
       wrapEl.style.setProperty('--dib-init-row-minheight', '112px');
       wrapEl.style.setProperty('--dib-init-row-pad', '18px 14px 18px 10px');
       wrapEl.style.setProperty('--dib-init-name-size', '18px');
-      wrapEl.style.setProperty('--dib-init-firstname-size', 'clamp(20px, 5.5vw, 34px)');
       wrapEl.style.setProperty('--dib-init-rank-size', '19px');
       wrapEl.style.setProperty('--dib-init-total-size', '38px');
       wrapEl.style.setProperty('--dib-init-cond-size', '11px');
@@ -243,7 +241,6 @@
       wrapEl.style.setProperty('--dib-init-row-minheight', '84px');
       wrapEl.style.setProperty('--dib-init-row-pad', '12px 10px 12px 8px');
       wrapEl.style.setProperty('--dib-init-name-size', '14px');
-      wrapEl.style.setProperty('--dib-init-firstname-size', 'clamp(16px, 4.5vw, 26px)');
       wrapEl.style.setProperty('--dib-init-rank-size', '15px');
       wrapEl.style.setProperty('--dib-init-total-size', '28px');
       wrapEl.style.setProperty('--dib-init-cond-size', '9px');
@@ -3361,6 +3358,12 @@
       const firstName = String(e.label || '').trim().split(/\s+/)[0] || e.label;
       nameEl.textContent = firstName;
       nameEl.setAttribute('data-dib-first-name', 'true');
+      const lenBucket = firstName.length <= 4 ? 'xs'
+        : firstName.length <= 6 ? 'sm'
+        : firstName.length <= 8 ? 'md'
+        : firstName.length <= 11 ? 'lg'
+        : 'xl';
+      nameEl.setAttribute('data-len', lenBucket);
     } else {
       nameEl.textContent = e.label;
     }
@@ -3898,10 +3901,17 @@
         min-width: 0;
       }
       .dib-init-name[data-dib-first-name] {
-        font-size: var(--dib-init-firstname-size, clamp(16px, 4.5vw, 26px));
-        line-height: 1.1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.15;
         letter-spacing: 0.01em;
       }
+      .dib-init-name[data-len="xs"] { font-size: 26px; }
+      .dib-init-name[data-len="sm"] { font-size: 22px; }
+      .dib-init-name[data-len="md"] { font-size: 18px; }
+      .dib-init-name[data-len="lg"] { font-size: 15px; }
+      .dib-init-name[data-len="xl"] { font-size: 13px; }
       .dib-init-body--click { cursor: pointer; }
       .dib-init-cond-row {
         display: flex;
