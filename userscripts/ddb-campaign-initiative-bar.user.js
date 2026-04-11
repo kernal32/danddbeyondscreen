@@ -4622,7 +4622,7 @@
         flex-direction: column;
         align-items: center;
         text-align: center;
-        gap: 2px;
+        gap: 0;
         min-width: 0;
       }
       .dib-pc-pass-num {
@@ -4647,6 +4647,8 @@
         color: var(--pc-teal);
         opacity: 0.55;
         flex-shrink: 0;
+        display: block;
+        margin-bottom: -2px;
       }
       .dib-pc-ds-group {
         display: flex;
