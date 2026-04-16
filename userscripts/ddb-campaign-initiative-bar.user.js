@@ -1299,7 +1299,8 @@
 
       const dcStr = c ? displaySpellSaveDc(c) : null;
       const hp = c ? hpBoxParts(c) : null;
-      const hpMain = hp ? (hp.temp ? String(hp.temp) : hp.cur) : '—';
+      const hasTmp = hp && hp.temp > 0;
+      const hpMain = hp ? (hasTmp ? String(hp.temp) : hp.cur) : '—';
       const hpSub = '';
       if (hp && Number(hp.cur) <= 0) {
         const koDiv = document.createElement('div');
@@ -1310,8 +1311,14 @@
 
       const statRow = document.createElement('div');
       statRow.className = 'dib-pc-stat-icon-row';
-      const hpBadge = makeStatBadge('hp', SVG_HEART, hpMain, hpSub, 'Hit points');
-      if (hp && hp.max !== '—') {
+      const hpRibbon = hasTmp ? 'Tmp HP' : 'Hit points';
+      const hpBadge = makeStatBadge('hp', SVG_HEART, hpMain, hpSub, hpRibbon);
+      if (hasTmp) {
+        hpBadge.title = 'Temporary HP: ' + hp.temp + ' · HP: ' + hp.cur + '/' + hp.max;
+      } else if (hp && hp.max !== '—') {
+        hpBadge.title = 'HP: ' + hp.cur + '/' + hp.max;
+      }
+      if (!hasTmp && hp && hp.max !== '—') {
         const cur = Number(hp.cur) || 0;
         const max = Number(hp.max) || 1;
         const ratio = cur / max;
