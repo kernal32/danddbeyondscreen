@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BOB Screen — left initiative bar
 // @namespace    https://github.com/kernal32/danddbeyondscreen
-// @version      1.6.9
+// @version      1.7.0
 // @description  Fullscreen DM overlay on /campaigns/*: Start Combat / Next Round; settings panel (colour theme × 4 + card density, localStorage); passives match stat-badge font size; conditions + death saves (legacy+v5 merge). Wiki: https://github.com/TeaWithLucas/DNDBeyond-DM-Screen/wiki/Module-output — legacy+v5 merge → v4. Cobalt 999080.
 // @match        https://www.dndbeyond.com/*
 // @match        https://www.dndbeyond.com/
@@ -1082,8 +1082,12 @@
             u.deathSaveInfo = Object.assign({}, u.deathSaveInfo || {}, computed.deathSaveInfo);
           }
           if (Array.isArray(computed.conditions)) u.conditions = computed.conditions;
-          if (Array.isArray(computed.spellSlots)) u.spellSlots = computed.spellSlots;
-          if (Array.isArray(computed.pactMagicSlots)) u.pactMagicSlots = computed.pactMagicSlots;
+          if (Array.isArray(computed.spellSlots) && computed.spellSlots.length > 0) {
+            console.debug('[ddb-init-bar] rules engine spellSlots sample:', JSON.stringify(computed.spellSlots[0]));
+          }
+          if (Array.isArray(computed.pactMagicSlots) && computed.pactMagicSlots.length > 0) {
+            console.debug('[ddb-init-bar] rules engine pactMagicSlots sample:', JSON.stringify(computed.pactMagicSlots[0]));
+          }
         }
       } catch (e) {
         console.warn('[ddb-init-bar] rules engine enrichment failed — using raw data', e);
