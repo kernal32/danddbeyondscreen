@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BOB Screen — left initiative bar
 // @namespace    https://github.com/kernal32/danddbeyondscreen
-// @version      1.7.0
+// @version      1.7.1
 // @description  Fullscreen DM overlay on /campaigns/*: Start Combat / Next Round; settings panel (colour theme × 4 + card density, localStorage); passives match stat-badge font size; conditions + death saves (legacy+v5 merge). Wiki: https://github.com/TeaWithLucas/DNDBeyond-DM-Screen/wiki/Module-output — legacy+v5 merge → v4. Cobalt 999080.
 // @match        https://www.dndbeyond.com/*
 // @match        https://www.dndbeyond.com/
