@@ -721,6 +721,7 @@
             }
           }
           if (charf && typeof charf.getAcTotal === 'function') {
+            SW.__ddbCharRulesEngine = charf;
             // Expose via moduleExport only if TeaWithLucas didn't already set it.
             if (!SW.moduleExport || typeof SW.moduleExport.getCharData !== 'function') {
               var getCharData = function (state) {
@@ -986,7 +987,18 @@
         toastMessage: {},
       };
       const computed = me.getCharData(state);
-      if (computed && typeof computed === 'object') return computed;
+      if (computed && typeof computed === 'object') {
+        const cre = SW.__ddbCharRulesEngine;
+        if (cre && !Array.isArray(computed.spellSlots)) {
+          if (typeof cre.getSpellSlots === 'function') {
+            try { computed.spellSlots = cre.getSpellSlots(state); } catch (_) {}
+          }
+          if (typeof cre.getPactMagicSlots === 'function') {
+            try { computed.pactMagicSlots = cre.getPactMagicSlots(state); } catch (_) {}
+          }
+        }
+        return computed;
+      }
     } catch (e) {
       console.warn('[ddb-init-bar] rules engine via moduleExport failed', e);
     }
