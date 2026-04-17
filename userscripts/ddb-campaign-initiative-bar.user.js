@@ -736,6 +736,8 @@
                   passiveInvestigation: charf.getPassiveInvestigation(state),
                   passiveInsight: charf.getPassiveInsight(state),
                   spellCasterInfo: charf.getSpellCasterInfo(state),
+                  spellSlots: typeof charf.getSpellSlots === 'function' ? charf.getSpellSlots(state) : undefined,
+                  pactMagicSlots: typeof charf.getPactMagicSlots === 'function' ? charf.getPactMagicSlots(state) : undefined,
                 };
               };
               if (!SW.moduleExport) SW.moduleExport = {};
@@ -1080,6 +1082,8 @@
             u.deathSaveInfo = Object.assign({}, u.deathSaveInfo || {}, computed.deathSaveInfo);
           }
           if (Array.isArray(computed.conditions)) u.conditions = computed.conditions;
+          if (Array.isArray(computed.spellSlots)) u.spellSlots = computed.spellSlots;
+          if (Array.isArray(computed.pactMagicSlots)) u.pactMagicSlots = computed.pactMagicSlots;
         }
       } catch (e) {
         console.warn('[ddb-init-bar] rules engine enrichment failed — using raw data', e);
